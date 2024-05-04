@@ -19,7 +19,6 @@ use self::models::{NewApp, App};
 
     pub fn create_app(conn: &mut PgConnection, app_name: &str) ->Result<App,diesel::result::Error>{
         use crate::schema::apps;
-        println!("{}",app_name);
 
         let new_app = NewApp { app_name };
 
@@ -53,7 +52,7 @@ use self::models::{NewApp, App};
     use self::models::{NewTaskApp,TaskApp};
 
     pub fn create_app_detail(conn: &mut PgConnection, task_id: i32, app_id:i32)-> TaskApp{
-        use crate::schema::tasks;
+        
 
         let new_app_detail=NewTaskApp{task_id,app_id};
 
@@ -64,13 +63,10 @@ use self::models::{NewApp, App};
             .expect("Error creating new task")
     }
 
-    pub fn setAppDetails(conn: &mut PgConnection, task_id: i32, task_apps_id:i32){
-
-    }
 
     use self::models::{NewLog,Log};
 
-    pub fn create_log(conn: &mut PgConnection, task_id: i32, log_type:String)-> Log{
+    pub fn create_log(conn: &mut PgConnection, task_id: i32, log_type:String)-> Result<Log,diesel::result::Error>{
         use crate::schema::log;
 
         let current_local_time = Local::now().naive_local();
@@ -81,7 +77,7 @@ use self::models::{NewApp, App};
             .values(&new_log)
             .returning(Log::as_returning())
             .get_result(conn)
-            .expect("Error creating new log")
+
     }
 
 

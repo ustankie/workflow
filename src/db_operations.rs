@@ -1,7 +1,13 @@
 use self::models::App;
 use self::schema::apps::dsl::*;
+use diesel::associations::HasTable;
 use diesel::prelude::*;
 use workflow::*;
+use diesel::prelude::QueryDsl;
+use diesel::dsl::count;
+use diesel::dsl::sql;
+use diesel::sql_types::Integer;
+
 
 use diesel::result::Error;
 use std::process;
@@ -27,7 +33,7 @@ pub fn add_app(_app_name: &str, display_communicates: bool) -> Result<i32, &'sta
 }
 
 pub fn find_app(_app_name: &str) -> Result<Option<App>, &'static str> {
-    use self::schema::apps::dsl::apps;
+    
 
     let connection = &mut establish_connection();
     find_app_body(_app_name, connection)
@@ -52,6 +58,44 @@ fn find_app_body(
     }
 }
 
+pub fn find_task(task_name_: &str) -> Result<Option<Task>, &'static str> {
+    
+    use self::schema::tasks::dsl::*;
+    let connection = &mut establish_connection();
+    let app = tasks
+        .filter(task_name.eq(task_name_.to_lowercase()))
+        .select(Task::as_select())
+        .first(connection);
+
+    match app {
+        Ok(x) => Ok(Some(x)),
+        Err(Error::NotFound) => Ok(None),
+        Err(x) => {
+            println!("{}", x);
+            Err("An error occured while fetching task")
+        }
+    }
+}
+pub fn get_stats(args: &[String]) {
+    use workflow::schema::*;
+    
+
+    let connection: &mut PgConnection = &mut establish_connection();
+
+    if(args.len()==0){
+
+        // let result = log.load::<Log>(connection)?;
+        let result: Result<Vec<(Task, i64)>, Error> = tasks::dsl::tasks::table()
+        .left_join(log::dsl::log::table())
+        .group_by(tasks::task_id)
+        .select((Task::as_select(), count(sql::<Integer>("CASE WHEN log.log_type = 'P' THEN 1 ELSE NULL END"))))
+        .load::<(Task, i64)>(connection);
+
+        println!("{:?}",result);
+
+    }
+}
+
 pub fn get_tasks() -> Result<Vec<Task>, Error> {
     use self::schema::tasks::dsl::tasks;
 
@@ -61,51 +105,85 @@ pub fn get_tasks() -> Result<Vec<Task>, Error> {
     Ok(tasks_list)
 }
 
-pub fn get_recent_log(_task_id:i32)-> Result<Option<Log>, &'static str>{
+pub fn get_recent_log(_task_id:i32, order: bool)-> Result<Option<Log>, &'static str>{
     use workflow::schema::log::*;
     use self::schema::log::dsl::*;
 
     let connection:&mut PgConnection = &mut establish_connection();
 
-    let result = log
+    let result:Result<Vec<Log>,Error> =if order{ log
         .filter(task_id.eq(_task_id))
-        .select(Log::as_select())
         .order(date.desc())
-        .first::<Log>(connection);
+        .limit(1)
+        .load::<Log>(connection)}
+        else{
+            log
+            .filter(task_id.eq(_task_id))
+            .order(date.asc())
+            .limit(1)
+            .load::<Log>(connection)
+        };
 
-    println!("{:?}",result);
+    
 
     match result {
-        Ok(x) => Ok(Some(x)),
+        Ok(x) if x.len()>0 => {let a=x[0].clone();
+            Ok(Some(a))},
+        Ok(_)=>Ok(None),
         Err(_) => Err("An error occured while fetching logs"),
     }
 }
 
-pub fn get_logs() -> Result<Vec<Log>, Error> {
-    use self::schema::log::dsl::log;
+pub fn get_logs(args: &[String]) -> Result<Vec<Log>, Error> {
+    use workflow::schema::log::dsl::*;
+    
 
     let connection: &mut PgConnection = &mut establish_connection();
 
-    let result = log.load::<Log>(connection)?;
+    if(args.len()==0){
 
-    Ok(result)
+        let result = log.load::<Log>(connection)?;
+
+        Ok(result)
+    }else{
+        let mut logs=vec![];
+        for x in args{
+            let task_id_=x.parse::<i32>().unwrap_or(-1);
+            let result = log.filter(task_id.eq(task_id_)).load::<Log>(connection)?;
+            logs.extend(result);
+            
+        }
+        Ok(logs)
+    }
+
+    
+
 }
 
-pub fn add_log(_task_id: i32, _log_type: String, display_communicates: bool) -> i32 {
-    use self::schema::log::dsl::*;
-
+pub fn add_log(_task_id: i32, _log_type: String, display_communicates: bool)  {
     let connection = &mut establish_connection();
 
     let logs = create_log(connection, _task_id, _log_type.clone());
 
-    if display_communicates {
-        println!(
-            "\nSaved log {} for task {} with id {}",
-            _log_type, _task_id, logs.log_id
-        );
+    match logs{
+        Err(Error::DatabaseError(diesel::result::DatabaseErrorKind::ForeignKeyViolation, _))=>println!("No such task, create it!"),
+        Err(_)=>(println!("Database error while creating the task")),
+        Ok(log)=>{
+            if display_communicates {
+                println!(
+                    "\nSaved log {} for task {} with id {}",
+                    _log_type, _task_id, log.log_id
+                );
+            }
+
+        }
     }
-    logs.log_id
 }
+
+
+
+
+    
 
 
 fn addApp(

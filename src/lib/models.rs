@@ -25,7 +25,7 @@ pub struct TaskApp {
     pub app_id: i32,
 }
 
-#[derive(Queryable, Selectable, Debug)]
+#[derive(Queryable, Selectable, Debug, Clone)]
 #[diesel(table_name = crate::schema::log)]
 pub struct Log {
     pub log_id: i32,

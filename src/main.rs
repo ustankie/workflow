@@ -1,8 +1,8 @@
 use std::env;
-use regex::Regex;
 use std::process;
+use chrono::Local;
+use db_operations::get_stats;
 
-use crate::db_operations::get_recent_log;
 pub mod db_operations;
 pub mod tasks;
 
@@ -18,6 +18,8 @@ enum Commands{
     Resume,
     End,
     Logs,
+    Man,
+    Stats,
     NoSuchCommand
 }
 
@@ -25,15 +27,17 @@ enum Commands{
 impl From<String> for Commands{
     fn from(input: String) -> Self { 
         match input.trim() {
+            "app"=>Commands::AddApp,
             "newtask"=>Commands::AddTask,
             "tasks"=>Commands::AllTasks,
-            "app"=>Commands::AddApp,
+            "logs"=>Commands::Logs,
             "app-task"=>Commands::AddAppToTask,
+            "stats"=>Commands::Stats,
             "begin"=> Commands::Begin,
             "end"=> Commands::End,
-            "logs"=>Commands::Logs,
             "pause"=>Commands::Pause,
             "resume"=>Commands::Resume,
+            "man"=>Commands::Man,
             _=>Commands::NoSuchCommand
         }
     }
@@ -60,29 +64,67 @@ fn main(){
         return;
     }
 
-    for (i, x) in args.iter().enumerate() {
-        if i>0{
-            println!("{:?}",(Commands::from(String::from(x))));
-        }
-    }
-
-    println!("{}",&args[1]);
     let command=Commands::from(args[1].clone());
-    let res=match command{
-        Commands::AddApp =>addApp(&args[2..],true),
-        Commands::AddTask=>tasks::addTask(args),
-        Commands::AllTasks=>displayTasks(),
+    let _res=match command{
+        Commands::AddApp =>add_app(&args[2..],true),
+        Commands::AddTask=>tasks::add_task(args),
+        Commands::AllTasks=>display_tasks(),
         Commands::Begin | Commands::End | Commands::Pause | Commands::Resume=>add_log(args,command),
-        Commands::Logs=>display_logs(),
+        Commands::Logs=>display_logs(&args[2..]),
+        Commands::Man=>display_man(),
+        Commands::Stats=>display_stats(&args[2..]),
         _ =>()
     };
 
-    println!("{:?}",db_operations::get_recent_log(1).unwrap_or_default());
-
-
 }
 
-fn addApp(args:&[String], display_communicates:bool){
+fn display_man(){
+    print!(
+"-----------------------------------------------------
+Welcome to workflow!
+-----------------------------------------------------
+COMMANDS:
+newtask NAME- creates new task
+    OPTIONS:
+        -t TIME - sets time user plans to spend on task. It should have format DAYS:HOURS:MINUTES
+        -a APPLIST - sets apps used during completing the task;
+tasks - displays all tasks;
+
+app APPLIST - adds specified apps to db;
+
+begin ID/NAME - begins the task given by id or name; a task that has ended cannot be started again;
+
+end ID/NAME - ends the task given by id or name; cannot end a task that was not started;
+
+pause ID/NAME - pauses the task given by id or name, a task that has already been paused, has ended 
+                or has not begun cannot be paused;
+
+resume ID/NAME - resumes the task given by id or name, a task that has not been paused, has ended 
+                 or has not begun cannot be resumed;     
+
+logs - displays the history of all tasks
+    OPTIONS
+        -t, -tasks TASKIDLIST - displays only the history of the tasks specified in args by id;
+
+man - displays app's manual;
+
+");
+}
+
+fn display_stats(args:&[String]){
+    let a=if args.len()>0 && (args[0]=="-t" || args[0]=="-tasks"){
+        db_operations::get_logs(&args[1..])
+    }else if args.len()==0{
+        db_operations::get_logs(&[])
+    }else{
+        println!("No such option!");
+        return;
+    };
+
+    get_stats(args);
+}
+
+fn add_app(args:&[String], display_communicates:bool){
     if args.len()<1{
         eprintln!("Too few args");
         process::exit(-1);
@@ -97,7 +139,7 @@ fn addApp(args:&[String], display_communicates:bool){
                         _=>()
                     }
                 },
-            Ok(Some(a))=>{if display_communicates{ println!("App {} already in db",x);}},
+            Ok(Some(_a))=>{if display_communicates{ println!("App {} already in db",x);}},
             Err(_)=>{println!("An error occured while fetching app {}", x);}
         };
             
@@ -107,7 +149,7 @@ fn addApp(args:&[String], display_communicates:bool){
 }
 
 
-fn displayTasks(){
+fn display_tasks(){
     let a=db_operations::get_tasks();
     if let Ok(x)=a{
         println!(
@@ -127,8 +169,16 @@ fn displayTasks(){
 
 }
 
-fn display_logs(){
-    let a=db_operations::get_logs();
+fn display_logs(args:&[String]){
+    let a=if args.len()>0 && (args[0]=="-t" || args[0]=="-tasks"){
+        db_operations::get_logs(&args[1..])
+    }else if args.len()==0{
+        db_operations::get_logs(&[])
+    }else{
+        println!("No such option!");
+        return;
+    };
+    
     if let Ok(x)=a{
         println!(
             "-------------------------------------------------------------------------------"
@@ -164,92 +214,69 @@ fn add_log(args:Vec<String>, log_type:Commands){
     let task_id=&args[2].parse::<i32>();
 
 
-
-
     match task_id{
-        Ok(num)=>{
-            let recent_log=db_operations::get_recent_log(*num);
-
-
-            match recent_log{
-                Err(x)=>{
-                        println!("{}",x);
-                        return;
-                    },
-                Ok(None)=>{
-                        if log_type!=(Commands::Begin){
-                            println!("First begin the task, then perform other operations!");
-                            return;
-                        }
-                    }
-                Ok(Some(x)) if x.log_type==Commands::End.to_string()=>println!("Task has been ended!"),
-                Ok(Some(x)) if x.log_type==Commands::Pause.to_string() && log_type==(Commands::Pause)=>println!("Task already paused"),
-                Ok(Some(x)) if x.log_type==Commands::Resume.to_string() && log_type==(Commands::Resume)=>println!("Task already resumed"),
-                Ok(Some(x)) if log_type==(Commands::Begin)=> println!("Task has been already started"),
-                _=>()
-
+        Ok(num)=>add_log_by_id(log_type, num),
+        Err(_)=>{
+            match db_operations::find_task(&args[2]){
+                Ok(Some(task))=>add_log_by_id(log_type, &(task.task_id)),
+                Ok(None)=>println!("No such task!"),
+                Err(x)=>println!("{}",x),
             }
-            
-            db_operations::add_log(*num, log_type.to_string(), true);},
-        Err(_)=>{println!("Error adding log");}
+            }
     }
 }
 
-pub fn addTask(args:Vec<String>){
-    if args.len()<3{
-        eprintln!("Too few args");
-        process::exit(-1);
-    }
-    let time_regex=Regex::new(r"^\d+:\d+:\d+$").unwrap();
-    let arg_regex=Regex::new(r"-.*").unwrap();
+fn add_log_by_id(log_type:Commands,num:&i32){
+    let recent_log=db_operations::get_recent_log(*num,true);
 
-    if arg_regex.is_match(&args[2]){
-        println!("First argument must be task name!");
-        process::exit(-1);
-    }
-    let task_name=&args[2];
-    println!("Task name: {}",task_name);
 
-    let mut time_planned:Option<&str>=None;
-    let mut task_apps:Option<&[String]>=None;
-
-    let mut i=3;
-    while i<args.len(){
-        println!("{}, {}",arg_regex.is_match(&args[i]),&args[i]);
-        match &args[i][..]{
-            "-t" => {
-                    i+=1;
-                    if time_regex.is_match(&args[i]){
-                        time_planned=Some(&args[i]);
-                        println!("{:?}",time_planned);
-                    }else{
-                        println!("Wrong time format!");
-                    }
-                    i+=1;
-                },
-            "-a"=>{
-                    i+=1; 
-                    if let None=task_apps{   
-                        println!("a");
-                        
-                        
-                        let j=i;
-                        while i<args.len() && !(arg_regex.is_match(&args[i])){
-                            i+=1;
-                        }
-                        task_apps=Option::from(&args[j..i]);
-                    }
+    match recent_log{
+        Err(x)=>{
+                println!("{}",x);
+                return;
+            },
+        Ok(None)=>{
+                if log_type!=(Commands::Begin){
+                    println!("First begin the task, then perform other operations!");
+                    return;
                 }
-
-            _=>{println!("Unknown argument '{}': try again",&args[i]); 
-                }
+            }
+        Ok(Some(x)) if x.log_type==Commands::End.to_string()=>{
+            println!("Task has been ended!");
+            return;},
+        Ok(Some(x)) if log_type==Commands::End=>{
+            let duration=Local::now().naive_local().signed_duration_since(x.date);
+            if x.log_type==Commands::Pause.to_string(){
+                print!("Ending pause that lasted: ");
+            }else{
+                print!("You've been working since last pause ");
+            }
+            println!( "{} days, {} hours, {} minutes", 
+            duration.num_days(), duration.num_hours(), duration.num_minutes()); 
+            let first_log=db_operations::get_recent_log(*num,false);
+            match first_log{
+                Err(a) =>{
+                        println!("{}",a);
+                        
+                    },
+                Ok(None)=>println!("Error finding first log!"),
+                Ok(Some(a))=>{
+                    let duration=Local::now().naive_local().signed_duration_since(a.date);
+                    println!("Total time spent on task:  {} days, {} hours, {} minutes",
+                    duration.num_days(), duration.num_hours(), duration.num_minutes());
+                }}
         }
-        
+        Ok(Some(x)) if x.log_type==Commands::Pause.to_string() && log_type==(Commands::Pause)=>{println!("Task has already been paused");return;},
+        Ok(Some(x)) if x.log_type!=Commands::Pause.to_string() && log_type==(Commands::Resume) =>{println!("Pause task before you resume it");return;},
+        Ok(Some(_)) if log_type==Commands::Begin => {println!("Task has already been started"); return;},
+        Ok(Some(x)) if x.log_type==Commands::Pause.to_string()=>{
+            let duration=Local::now().naive_local().signed_duration_since(x.date);
+            println!("You've been working {} days, {} hours, {} minutes", duration.num_days(), duration.num_hours(), duration.num_minutes());}
+        Ok(Some(x)) if x.log_type==Commands::Resume.to_string()=>{
+            let duration=Local::now().naive_local().signed_duration_since(x.date);
+            println!("Your pause was {} days, {} hours, {} minutes long",  duration.num_days(), duration.num_hours(), duration.num_minutes());}
+        _=>()
     }
-
-    if let Err(x)=db_operations::add_task(task_name, time_planned, task_apps, true){
-        println!("{}",x);
-    }
-
-
+    
+    db_operations::add_log(*num, log_type.to_string(), true);
 }

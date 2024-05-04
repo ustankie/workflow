@@ -1,11 +1,11 @@
 use std::process;
 use regex::Regex;
-use workflow::*;
-use diesel::prelude::*;
-use diesel::result::Error;
-use crate::db_operations::add_task;
 
-pub fn addTask(args:Vec<String>){
+
+
+use crate::db_operations;
+
+pub fn add_task(args:Vec<String>){
     if args.len()<3{
         eprintln!("Too few args");
         process::exit(-1);
@@ -57,7 +57,7 @@ pub fn addTask(args:Vec<String>){
         
     }
 
-    if let Err(x)=add_task(task_name, time_planned, task_apps, true){
+    if let Err(x)=db_operations::add_task(task_name, time_planned, task_apps, true){
         println!("{}",x);
     }
 
