@@ -1,7 +1,7 @@
 use diesel::prelude::*;
 use chrono::NaiveDateTime;
 
-#[derive(Queryable, Selectable, Debug)]
+#[derive(Queryable, Selectable, Debug,Clone)]
 #[diesel(table_name = crate::schema::tasks)]
 pub struct Task {
     pub task_id: i32,
@@ -31,7 +31,7 @@ pub struct Log {
     pub log_id: i32,
     pub task_id: i32,
     pub log_type: String,
-    pub date: NaiveDateTime
+    pub date: NaiveDateTime,
 }
 
 use crate::schema::apps;

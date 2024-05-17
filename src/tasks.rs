@@ -1,8 +1,6 @@
 use std::process;
 use regex::Regex;
 
-
-
 use crate::db_operations;
 
 pub fn add_task(args:Vec<String>){
@@ -57,12 +55,32 @@ pub fn add_task(args:Vec<String>){
         
     }
 
-    if let Err(x)=db_operations::add_task(task_name, time_planned, task_apps, true){
+    if let Err(x)=db_operations::tasks::add_task(task_name, time_planned, task_apps, true){
         println!("{}",x);
     }
 
 
 }
+pub fn display_tasks(){
+    let a=db_operations::tasks::get_tasks();
+    if let Ok(x)=a{
+        println!(
+            "-----------------------------------------------------"
+        );
+        println!(
+            "{: <10} | {: <10} | {: <10} | {: <10}",
+            "task_id", "task_name", "user", "planned_time"
+        );
+        println!(
+            "-----------------------------------------------------"
+        );
+        for row in x{
+            println!("{: <10} | {: <10} | {: <10} | {: <10}", row.task_id,row.task_name,row.username,row.planned_time.unwrap_or("null".to_string()));
+        }
+    }
+
+}
+
 
 
 
