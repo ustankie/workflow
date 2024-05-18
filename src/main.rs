@@ -74,14 +74,14 @@ fn main(){
     }
 
     let command=Commands::from(args[1].clone());
-    let _res=match command{
+    match command{
         Commands::AddApp =>add_app(&args[2..],true),
         Commands::AddTask=>tasks::add_task(args),
         Commands::AllTasks=>tasks::display_tasks(),
         Commands::Begin | Commands::End | Commands::Pause | Commands::Resume=>logs::add_log(args,command),
         Commands::Logs=>logs::display_logs(&args[2..]),
         Commands::Man=>display_man(),
-        Commands::Stats=>{let _ = stats::display_stats(&args[2..]);},
+        Commands::Stats=>stats::display_stats(&args[2..]),
         Commands::AddProject=>projects::add_project(args),
         Commands::AllProjects=>projects::display_projects(),
         Commands::Day=>stats::display_day_stats(&args[2..]),
