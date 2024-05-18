@@ -11,6 +11,10 @@ dotenvy = "0.15"
 whoami = "1.5.1"
 regex="1.5"
 chrono="0.4.37"
+comfy-table = "7.1.0"
+crossterm = "0.20.0"
+
+
 
 [lib]
 name = "workflow"

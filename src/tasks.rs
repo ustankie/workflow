@@ -1,5 +1,8 @@
 use std::process;
 use regex::Regex;
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL;
+use comfy_table::*;
 
 use crate::db_operations;
 
@@ -55,7 +58,7 @@ pub fn add_task(args:Vec<String>){
         
     }
 
-    if let Err(x)=db_operations::tasks::add_task(task_name, time_planned, task_apps, true){
+    if let Err(x)=db_operations::tasks::add_task(1,task_name, time_planned, task_apps, true){
         println!("{}",x);
     }
 
@@ -64,19 +67,27 @@ pub fn add_task(args:Vec<String>){
 pub fn display_tasks(){
     let a=db_operations::tasks::get_tasks();
     if let Ok(x)=a{
-        println!(
-            "-----------------------------------------------------"
-        );
-        println!(
-            "{: <10} | {: <10} | {: <10} | {: <10}",
-            "task_id", "task_name", "user", "planned_time"
-        );
-        println!(
-            "-----------------------------------------------------"
-        );
+        let mut table = Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![Cell::new("task_id").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+            Cell::new("project_id").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+             Cell::new("task_name").set_alignment(CellAlignment::Center).fg(Color::Cyan), 
+             Cell::new("user").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+             Cell::new("planned_time").set_alignment(CellAlignment::Center).fg(Color::Cyan)]);
         for row in x{
-            println!("{: <10} | {: <10} | {: <10} | {: <10}", row.task_id,row.task_name,row.username,row.planned_time.unwrap_or("null".to_string()));
+            table.add_row(vec![
+                Cell::new(row.task_id).set_alignment(CellAlignment::Center),
+                Cell::new(row.project_id).set_alignment(CellAlignment::Center),
+                Cell::new(row.task_name).set_alignment(CellAlignment::Center),
+                Cell::new(row.username).set_alignment(CellAlignment::Center),
+                Cell::new(row.planned_time.unwrap_or("null".to_string())).set_alignment(CellAlignment::Center)
+            ]);
         }
+        println!("{table}");
+
     }
 
 }

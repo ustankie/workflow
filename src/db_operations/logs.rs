@@ -58,8 +58,6 @@ pub fn get_logs(args: &[String]) -> Result<Vec<Log>, Error> {
         Ok(logs)
     }
 
-    
-
 }
 
 pub fn add_log(_task_id: i32, _log_type: String, display_communicates: bool)  {

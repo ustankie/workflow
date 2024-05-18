@@ -3,6 +3,7 @@ use diesel::prelude::*;
 use dotenvy::dotenv;
 use std::env;
 use chrono::Local;
+use crate::models::*;
 
 pub mod models;
 pub mod schema;
@@ -37,10 +38,10 @@ use self::models::{NewApp, App};
 
     use self::models::{NewTask,Task};
 
-    pub fn create_task(conn: &mut PgConnection, task_name: &str, _planned_time: Option<&str>)-> Result<Task,diesel::result::Error>{
+    pub fn create_task(conn: &mut PgConnection,project_id: i32 , task_name: &str, _planned_time: Option<&str>)-> Result<Task,diesel::result::Error>{
         use crate::schema::tasks;
 
-        let new_task=NewTask{task_name,username: &whoami::username(),planned_time:_planned_time};
+        let new_task=NewTask{project_id, task_name,username: &whoami::username(),planned_time:_planned_time};
 
         diesel::insert_into(tasks::table)
             .values(&new_task)
@@ -48,17 +49,28 @@ use self::models::{NewApp, App};
             .get_result(conn)
             
     }
+    pub fn create_project(conn: &mut PgConnection,project_name: &str, _planned_time: Option<&str>)-> Result<Project,diesel::result::Error>{
+        use crate::schema::projects;
 
-    use self::models::{NewTaskApp,TaskApp};
 
-    pub fn create_app_detail(conn: &mut PgConnection, task_id: i32, app_id:i32)-> TaskApp{
+        let new_project=NewProject{project_name,username: &whoami::username(),planned_time:_planned_time};
+
+        diesel::insert_into(projects::table)
+            .values(&new_project)
+            .returning(Project::as_returning())
+            .get_result(conn)
+            
+    }
+    use self::models::{NewProjectApp,ProjectApp};
+
+    pub fn create_app_detail(conn: &mut PgConnection, task_id: i32, app_id:i32)-> ProjectApp{
         
 
-        let new_app_detail=NewTaskApp{task_id,app_id};
+        let new_app_detail=NewProjectApp{project_id: task_id,app_id};
 
-        diesel::insert_into(schema::task_apps::table)
+        diesel::insert_into(schema::project_apps::table)
             .values(&new_app_detail)
-            .returning(TaskApp::as_returning())
+            .returning(ProjectApp::as_returning())
             .get_result(conn)
             .expect("Error creating new task")
     }

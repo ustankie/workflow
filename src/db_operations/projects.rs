@@ -6,13 +6,13 @@ use diesel::result::Error;
 use workflow::models::*;
 use crate::db_operations;
 
-pub fn find_task(task_name_: &str) -> Result<Option<Task>, &'static str> {
+pub fn find_project(project_name_: &str) -> Result<Option<Project>, &'static str> {
     
-    use self::schema::tasks::dsl::*;
+    use self::schema::projects::dsl::*;
     let connection = &mut establish_connection();
-    let app = tasks
-        .filter(task_name.eq(task_name_.to_lowercase()))
-        .select(Task::as_select())
+    let app = projects
+        .filter(project_name.eq(project_name_.to_lowercase()))
+        .select(Project::as_select())
         .first(connection);
 
     match app {
@@ -20,41 +20,40 @@ pub fn find_task(task_name_: &str) -> Result<Option<Task>, &'static str> {
         Err(Error::NotFound) => Ok(None),
         Err(x) => {
             println!("{}", x);
-            Err("An error occured while fetching task")
+            Err("An error occured while fetching project")
         }
     }
 }
 
-pub fn get_tasks() -> Result<Vec<Task>, Error> {
-    use self::schema::tasks::dsl::tasks;
+pub fn get_projects() -> Result<Vec<Project>, Error> {
+    use self::schema::projects::dsl::projects;
 
     let connection = &mut establish_connection();
-    let tasks_list = tasks.load::<Task>(connection)?;
+    let projects_list = projects.load::<Project>(connection)?;
 
-    Ok(tasks_list)
+    Ok(projects_list)
 }
 
-pub fn add_task(
-    project_id:i32,
-    task_name_: &str,
+pub fn add_project(
+    project_name_: &str,
     planned_time: Option<&str>,
-    task_apps: Option<&[String]>,
+    project_apps: Option<&[String]>,
     display_communicates: bool,
 ) -> Result<i32, &'static str> {
     let connection = &mut establish_connection();
-    let mut task_id = 0;
+    let mut project_id = 0;
 
     match connection.transaction::<_, Error, _>(|connection| {
-        let task = match create_task(connection,project_id, task_name_, planned_time) {
+        let project = match create_project(connection, project_name_, planned_time) {
             Ok(x) => x,
             Err(e) => {
                 return Err(e);
             }
         };
 
-        task_id = task.task_id;
+        project_id = project.project_id;
 
-        if let Some(x) = task_apps {
+        if let Some(x) = project_apps {
             println!("yes!");
             println!("{:?}", x);
             let app_ids = match db_operations::apps::add_multiple_apps(x, false, connection) {
@@ -67,7 +66,7 @@ pub fn add_task(
 
             println!("{:?}", app_ids);
             for _app_id in app_ids {
-                create_app_detail(connection, task_id, _app_id);
+                create_app_detail(connection, project_id, _app_id);
             }
         }
         Ok("")
@@ -76,14 +75,15 @@ pub fn add_task(
         Ok(_) => {
             if display_communicates {
                 println!("Transaction committed successfully:");
-                println!("\nSaved task \"{}\"", task_name_);
+                println!("\nSaved project \"{}\"", project_name_);
             }
-            Ok(task_id)
+            Ok(project_id)
         }
         Err(Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, _)) => {
-            return Err("Task of such name is already in the database, choose another name!");
+            return Err("Project of such name is already in the database, choose another name!");
         },
-        Err(_) => {
+        Err(x) => {
+            println!("{}",x);
             return Err("Database error occurred");
         }
     }
