@@ -7,24 +7,37 @@ use comfy_table::*;
 use crate::db_operations;
 
 pub fn add_task(args:Vec<String>){
-    if args.len()<3{
+    if args.len()<4{
         eprintln!("Too few args");
         process::exit(-1);
     }
     let time_regex=Regex::new(r"^\d+:\d+:\d+$").unwrap();
     let arg_regex=Regex::new(r"-.*").unwrap();
+    let project_id_regex=Regex::new(r"^\d+").unwrap();
 
     if arg_regex.is_match(&args[2]){
         println!("First argument must be task name!");
         process::exit(-1);
     }
+
+    if !project_id_regex.is_match(&args[3]){
+        println!("Second argument must be project id!");
+        process::exit(-1);
+    }
     let task_name=&args[2];
     println!("Task name: {}",task_name);
 
-    let mut time_planned:Option<&str>=None;
-    let mut task_apps:Option<&[String]>=None;
+    let task_project_id=&args[3].parse::<i32>();
+    let task_project_id=match task_project_id{
+        Err(_)=>{println!("Wrong project id format, couldn't parse");
+                process::exit(-1);}
+        Ok(x)=>x
 
-    let mut i=3;
+    };
+
+    let mut time_planned:Option<&str>=None;
+
+    let mut i=4;
     while i<args.len(){
         println!("{}, {}",arg_regex.is_match(&args[i]),&args[i]);
         match &args[i][..]{
@@ -38,27 +51,28 @@ pub fn add_task(args:Vec<String>){
                     }
                     i+=1;
                 },
-            "-a"=>{
-                    i+=1; 
-                    if let None=task_apps{   
-                        println!("a");
+            // "-a"=>{
+            //         i+=1; 
+            //         if let None=task_apps{   
+            //             println!("a");
                         
                         
-                        let j=i;
-                        while i<args.len() && !(arg_regex.is_match(&args[i])){
-                            i+=1;
-                        }
-                        task_apps=Option::from(&args[j..i]);
-                    }
-                }
+            //             let j=i;
+            //             while i<args.len() && !(arg_regex.is_match(&args[i])){
+            //                 i+=1;
+            //             }
+            //             task_apps=Option::from(&args[j..i]);
+            //         }
+            //     }
 
             _=>{println!("Unknown argument '{}': try again",&args[i]); 
+            process::exit(-1);
                 }
         }
         
     }
 
-    if let Err(x)=db_operations::tasks::add_task(1,task_name, time_planned, task_apps, true){
+    if let Err(x)=db_operations::tasks::add_task(task_project_id.to_owned(),task_name, time_planned,  true){
         println!("{}",x);
     }
 

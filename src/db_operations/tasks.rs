@@ -4,7 +4,6 @@ use diesel::prelude::QueryDsl;
 
 use diesel::result::Error;
 use workflow::models::*;
-use crate::db_operations;
 
 pub fn find_task(task_name_: &str) -> Result<Option<Task>, &'static str> {
     
@@ -38,7 +37,6 @@ pub fn add_task(
     project_id:i32,
     task_name_: &str,
     planned_time: Option<&str>,
-    task_apps: Option<&[String]>,
     display_communicates: bool,
 ) -> Result<i32, &'static str> {
     let connection = &mut establish_connection();
@@ -54,22 +52,6 @@ pub fn add_task(
 
         task_id = task.task_id;
 
-        if let Some(x) = task_apps {
-            println!("yes!");
-            println!("{:?}", x);
-            let app_ids = match db_operations::apps::add_multiple_apps(x, false, connection) {
-                Ok(x) => x,
-                Err(x) => {
-                    println!("{}", x);
-                    vec![]
-                }
-            };
-
-            println!("{:?}", app_ids);
-            for _app_id in app_ids {
-                create_app_detail(connection, task_id, _app_id);
-            }
-        }
         Ok("")
     }) 
     {
@@ -80,10 +62,11 @@ pub fn add_task(
             }
             Ok(task_id)
         }
-        Err(Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, _)) => {
-            return Err("Task of such name is already in the database, choose another name!");
+        Err(Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, _x)) => {
+
+            return Err("Task of such name is already in this project, choose another name!");
         },
-        Err(_) => {
+        Err(_x) => {
             return Err("Database error occurred");
         }
     }

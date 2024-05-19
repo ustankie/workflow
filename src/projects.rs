@@ -1,5 +1,9 @@
 use std::process;
+use chrono::NaiveDateTime;
 use regex::Regex;
+use workflow::models::Task;
+use crate::stats;
+
 
 use crate::db_operations;
 
@@ -23,13 +27,11 @@ pub fn add_project(args:Vec<String>){
 
     let mut i=3;
     while i<args.len(){
-        println!("{}, {}",arg_regex.is_match(&args[i]),&args[i]);
         match &args[i][..]{
             "-t" => {
                     i+=1;
                     if time_regex.is_match(&args[i]){
                         time_planned=Some(&args[i]);
-                        println!("{:?}",time_planned);
                     }else{
                         println!("Wrong time format!");
                     }
@@ -38,9 +40,7 @@ pub fn add_project(args:Vec<String>){
             "-a"=>{
                     i+=1; 
                     if let None=project_apps{   
-                        println!("a");
-                        
-                        
+ 
                         let j=i;
                         while i<args.len() && !(arg_regex.is_match(&args[i])){
                             i+=1;
@@ -62,21 +62,7 @@ pub fn add_project(args:Vec<String>){
 
 }
 pub fn display_projects(){
-    let a=db_operations::projects::get_projects();
-    if let Ok(x)=a{
-        println!(
-            "-----------------------------------------------------"
-        );
-        println!(
-            "{: <10} | {: <10} | {: <10} | {: <10}",
-            "project_id", "project_name", " user", "planned_time"
-        );
-        println!(
-            "-----------------------------------------------------"
-        );
-        for row in x{
-            println!("{: <10} | {: <10} | {: <10} | {: <10}", row.project_id,row.project_name,row.username,row.planned_time.unwrap_or("null".to_string()));
-        }
-    }
-
+    let _a=db_operations::projects::get_projects();
+    let stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> = db_operations::stats::get_stats(&[]);
+    stats::display_content(stats, stats::PrintMode::Project);
 }

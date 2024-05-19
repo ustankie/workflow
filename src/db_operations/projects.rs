@@ -75,8 +75,7 @@ pub fn add_project(
         project_id = project.project_id;
 
         if let Some(x) = project_apps {
-            println!("yes!");
-            println!("{:?}", x);
+
             let app_ids = match db_operations::apps::add_multiple_apps(x, false, connection) {
                 Ok(x) => x,
                 Err(x) => {
@@ -94,8 +93,8 @@ pub fn add_project(
     }) {
         Ok(_) => {
             if display_communicates {
-                println!("Transaction committed successfully:");
-                println!("\nSaved project \"{}\"", project_name_);
+                println!("Transaction committed successfully");
+                println!("Saved project \"{}\"", project_name_);
             }
             Ok(project_id)
         }

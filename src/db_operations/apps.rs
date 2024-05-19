@@ -39,7 +39,7 @@ pub fn add_multiple_apps(
     let mut ids: Vec<i32> = vec![];
 
     for x in args {
-        println!("{}", x);
+        // println!("{}", x);
         match find_app_body(x, connection) {
             Ok(None) => match add_app(&(x.to_lowercase()), display_communicates) {
                 Err(x) => return Err(x),
@@ -79,8 +79,8 @@ fn find_app_body(
     match app {
         Ok(x) => Ok(Some(x)),
         Err(Error::NotFound) => Ok(None),
-        Err(x) => {
-            println!("{}", x);
+        Err(_x) => {
+            // println!("{}", x);
             Err("An error occured while fetching app {}")
         }
     }

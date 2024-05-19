@@ -1,5 +1,6 @@
 use chrono::Duration;
 use std::cmp::max;
+use std::process;
 use workflow::models::{Project, Task};
 
 use crate::db_operations;
@@ -11,7 +12,7 @@ use comfy_table::presets::UTF8_FULL;
 use comfy_table::*;
 use std::collections::{HashMap, HashSet};
 
-enum PrintMode {
+pub enum PrintMode {
     All,
     Appearing,
     Project,
@@ -49,7 +50,7 @@ pub fn display_stats(args: &[String]) {
     let stats = db_operations::stats::get_stats(args);
     display_content(stats, PrintMode::All);
 }
-fn display_content(
+pub fn display_content(
     stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>,
     print_mode: PrintMode,
 ) {
@@ -79,6 +80,9 @@ fn display_content(
                 Cell::new("completed tasks")
                     .set_alignment(CellAlignment::Center)
                     .fg(Color::Cyan),
+                Cell::new("planned_time")
+                .set_alignment(CellAlignment::Center)
+                .fg(Color::Cyan),
                 Cell::new("total_worked")
                     .set_alignment(CellAlignment::Center)
                     .fg(Color::Cyan),
@@ -283,6 +287,7 @@ fn extend_project_table(table: &mut Table, project: &ProjectStats) {
         Cell::new(project.username.clone()).set_alignment(CellAlignment::Center),
         Cell::new(project.total_tasks).set_alignment(CellAlignment::Center),
         Cell::new(project.completed_tasks).set_alignment(CellAlignment::Center),
+        Cell::new(project.clone().planned_time.unwrap_or("null".to_string())).set_alignment(CellAlignment::Center),
         Cell::new(format!(
             "{:02}:{:02}:{:02}",
             project.total_worked.num_days(),
@@ -482,29 +487,48 @@ fn get_stats_map(
 
 pub fn display_day_stats(args: &[String]) {
     let mut date_to_seek = Local::now().naive_local().date();
-    if args.len() > 0 {
-        if args[0] != "-d" && args[0] != "-day" {
-            println!("Wrong option!");
-            return;
-        }
+    let mut long_version=false;
 
-        if args.len() < 2 {
-            println!("Too little arguments for this option!");
-            return;
-        }
+    let mut i=0;
+    while i<args.len(){
+        match &args[i][..]{
+            "-d"|"-day"|"-ld" |"-dl"=> {
+                    if "-ld"==&args[i][..]||"-dl"==&args[i][..]{
+                        long_version=true;
+                    }
+                    i+=1;
+                    if args.len() < 2 {
+                        println!("Too little arguments for this option!");
+                        return;
+                    }
+            
+                    let seeked_date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d");
+                    if let Err(_) = seeked_date {
+                        println!("Couldn't parse the date format, giving results for current day");
+                    }
+            
+                    date_to_seek = seeked_date.unwrap_or(Local::now().naive_local().date());
+                    i+=1;
+                    
+                },
+            "-l"=>{
+                    i+=1; 
+                    long_version=true;
 
-        let seeked_date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d");
-        if let Err(_) = seeked_date {
-            println!("Couldn't parse the date format, giving results for current day");
-        }
+                }
 
-        date_to_seek = seeked_date.unwrap_or(Local::now().naive_local().date());
+            _=>{println!("Unknown argument '{}': try again",&args[i]); 
+                process::exit(-1);
+                }
+        }
+        
     }
+
 
     let projects = get_date_projects(date_to_seek);
 
     if let Ok(x) = projects {
-        let stats = db_operations::stats::get_day_stats_tasks(date_to_seek, None);
+        let stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> = db_operations::stats::get_day_stats_tasks(date_to_seek, None);
 
         if x.len() > 0 {
             if date_to_seek == Local::now().naive_local().date() {
@@ -514,16 +538,20 @@ pub fn display_day_stats(args: &[String]) {
             }
             println!("you worked on the following {} projects:", x.len());
             display_content(stats, PrintMode::Project);
-            println!("In details:");
+            if long_version{
+                println!("In details:");
+                for project in x {
+                    println!("Project {}:", project.project_id);
+                    let stats =
+                        db_operations::stats::get_day_stats_tasks(date_to_seek, Some(project.project_id));
+                    display_content(stats, PrintMode::Appearing)
+                }
+            }
+           
         }else{
             println!("Today you didn't work on any projects");
         }
 
-        for project in x {
-            println!("Project {}:", project.project_id);
-            let stats =
-                db_operations::stats::get_day_stats_tasks(date_to_seek, Some(project.project_id));
-            display_content(stats, PrintMode::Appearing)
-        }
+       
     }
 }
