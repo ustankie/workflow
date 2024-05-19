@@ -1,13 +1,13 @@
-use diesel::prelude::*;
-use workflow::*;
+use crate::db_operations;
+use chrono::NaiveDate;
+use diesel::dsl::date;
 use diesel::prelude::QueryDsl;
-
+use diesel::prelude::*;
 use diesel::result::Error;
 use workflow::models::*;
-use crate::db_operations;
+use workflow::*;
 
 pub fn find_project(project_name_: &str) -> Result<Option<Project>, &'static str> {
-    
     use self::schema::projects::dsl::*;
     let connection = &mut establish_connection();
     let app = projects
@@ -30,6 +30,27 @@ pub fn get_projects() -> Result<Vec<Project>, Error> {
 
     let connection = &mut establish_connection();
     let projects_list = projects.load::<Project>(connection)?;
+
+    Ok(projects_list)
+}
+
+pub fn get_date_projects(date_to_seek: NaiveDate) -> Result<Vec<Project>, Error> {
+    use self::schema::log::dsl::log;
+    use self::schema::projects::dsl::projects;
+    use self::schema::tasks::dsl::tasks;
+
+    let connection = &mut establish_connection();
+    let projects_list = tasks
+        .inner_join(log.on(workflow::schema::log::task_id.eq(workflow::schema::tasks::task_id)))
+        .inner_join(
+            projects
+                .on(workflow::schema::projects::project_id.eq(workflow::schema::tasks::project_id)),
+        )
+        .filter(date(workflow::schema::log::date).eq(date_to_seek))
+        .order(workflow::schema::projects::project_id.asc())
+        .select(Project::as_select())
+        .distinct()
+        .load::<Project>(connection)?;
 
     Ok(projects_list)
 }
@@ -70,8 +91,7 @@ pub fn add_project(
             }
         }
         Ok("")
-    }) 
-    {
+    }) {
         Ok(_) => {
             if display_communicates {
                 println!("Transaction committed successfully:");
@@ -81,11 +101,10 @@ pub fn add_project(
         }
         Err(Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, _)) => {
             return Err("Project of such name is already in the database, choose another name!");
-        },
+        }
         Err(x) => {
-            println!("{}",x);
+            println!("{}", x);
             return Err("Database error occurred");
         }
     }
 }
-

@@ -1,16 +1,21 @@
 use chrono::Duration;
 use std::cmp::max;
-use std::os::unix::process;
 use workflow::models::{Project, Task};
 
 use crate::db_operations;
-use crate::db_operations::projects::get_projects;
+use crate::db_operations::projects::{get_date_projects, get_projects};
 use crate::Commands;
 use chrono::prelude::*;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+enum PrintMode {
+    All,
+    Appearing,
+    Project,
+}
 
 #[derive(Debug, Clone)]
 pub struct ProjectStats {
@@ -24,6 +29,7 @@ pub struct ProjectStats {
     longest_pause: Duration,
     longest_work: Duration,
     total_tasks: i32,
+    completed_tasks: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -39,69 +45,94 @@ pub struct TaskStats {
     longest_pause: Duration,
     longest_work: Duration,
 }
-pub fn display_stats(args: &[String]){
-    
-    let stats=db_operations::stats::get_stats(args);
-    display_content(stats);
+pub fn display_stats(args: &[String]) {
+    let stats = db_operations::stats::get_stats(args);
+    display_content(stats, PrintMode::All);
 }
-pub fn display_content(stats:Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>) {
+fn display_content(
+    stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>,
+    print_mode: PrintMode,
+) {
     let all_projects = get_projects().ok();
 
-    let (mut project_stats,mut task_stats) =get_stats_map(all_projects, stats);
+    let (project_stats, task_stats) = get_stats_map(all_projects, stats);
 
     let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec![
-            Cell::new("task_id")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("project_id")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("task_name")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("user")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("planned_time")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("total time")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("total worked")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("pause num")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("longest pause")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-            Cell::new("longest work")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
-        ]);
+    if let PrintMode::Project = print_mode {
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![
+                Cell::new("project_id")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("project_name")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("user")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("total tasks")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("completed tasks")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("total_worked")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+            ]);
+    } else {
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![
+                Cell::new("task_id")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("project_id")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("task_name")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("user")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("planned_time")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("total time")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("total worked")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("pause num")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("longest pause")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("longest work")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+            ]);
+    }
+    let mut project_ids = HashSet::new();
 
-        for task in task_stats
-        {
+    for task in task_stats {
+        if let PrintMode::Project = print_mode {
+        } else {
             table.add_row(vec![
                 Cell::new(task.task_id).set_alignment(CellAlignment::Center),
                 Cell::new(task.project_id).set_alignment(CellAlignment::Center),
-                Cell::new(task.task_name.clone())
+                Cell::new(task.task_name.clone()).set_alignment(CellAlignment::Center),
+                Cell::new(task.username.clone()).set_alignment(CellAlignment::Center),
+                Cell::new(task.planned_time.unwrap_or("null".to_string()))
                     .set_alignment(CellAlignment::Center),
-                Cell::new(task.username.clone())
-                    .set_alignment(CellAlignment::Center),
-                Cell::new(
-                    task
-                        .planned_time
-                        .unwrap_or("null".to_string()),
-                )
-                .set_alignment(CellAlignment::Center),
                 Cell::new(format!(
                     "{:02}:{:02}:{:02}",
                     task.total_time.num_days(),
@@ -133,71 +164,139 @@ pub fn display_content(stats:Result<Vec<(Task, Option<i32>, Option<String>, Opti
                 .set_alignment(CellAlignment::Center),
             ]);
         }
-        let mut vals: Vec<ProjectStats> = project_stats.values().cloned().collect();
-        vals.sort_by(|a, b| {
-            if a.project_id == 0 {
-                std::cmp::Ordering::Greater
-            } else if b.project_id == 0 {
-                std::cmp::Ordering::Less
-            } else {
-                a.project_id.cmp(&b.project_id)
-            }
-        });
 
-        for project in vals {
-            table.add_row(vec![
-                Cell::new("total").set_alignment(CellAlignment::Center),
-                Cell::new(if project.project_id > 0 {
-                    project.project_id.to_string()
+        project_ids.insert(task.project_id);
+    }
+    // project_ids.insert(0);
+    match print_mode {
+        PrintMode::All => {
+            let mut vals: Vec<ProjectStats> = project_stats.values().cloned().collect();
+            vals.sort_by(|a, b| {
+                if a.project_id == 0 {
+                    std::cmp::Ordering::Greater
+                } else if b.project_id == 0 {
+                    std::cmp::Ordering::Less
                 } else {
-                    "total".to_string()
-                })
-                .set_alignment(CellAlignment::Center),
-                Cell::new(project.project_name.clone()).set_alignment(CellAlignment::Center),
-                Cell::new(project.username.clone()).set_alignment(CellAlignment::Center),
-                Cell::new(project.clone().planned_time.unwrap_or("null".to_string()))
-                    .set_alignment(CellAlignment::Center),
-                Cell::new(format!(
-                    "{:02}:{:02}:{:02}",
-                    project.total_time.num_days(),
-                    project.total_time.num_hours() - 24 * project.total_time.num_days(),
-                    project.total_time.num_minutes() - project.total_time.num_hours() * 60
-                ))
-                .set_alignment(CellAlignment::Center),
-                Cell::new(format!(
-                    "{:02}:{:02}:{:02}",
-                    project.total_worked.num_days(),
-                    project.total_worked.num_hours() - 24 * project.total_worked.num_days(),
-                    project.total_worked.num_minutes() - project.total_worked.num_hours() * 60
-                ))
-                .set_alignment(CellAlignment::Center),
-                Cell::new(project.pause_num).set_alignment(CellAlignment::Center),
-                Cell::new(format!(
-                    "{:02}:{:02}:{:02}",
-                    project.longest_pause.num_days(),
-                    project.longest_pause.num_hours() - 24 * project.longest_pause.num_days(),
-                    project.longest_pause.num_minutes()
-                        - 60 * project.longest_pause.num_hours()
-                ))
-                .set_alignment(CellAlignment::Center),
-                Cell::new(format!(
-                    "{:02}:{:02}:{:02}",
-                    project.longest_work.num_days(),
-                    project.longest_work.num_hours() - 24 * project.longest_work.num_days(),
-                    project.longest_work.num_minutes() - 60 * project.longest_work.num_hours()
-                ))
-                .set_alignment(CellAlignment::Center),
-            ]);
+                    a.project_id.cmp(&b.project_id)
+                }
+            });
+
+            for project in vals {
+                extend_table(&mut table, &project);
+            }
         }
+
+        PrintMode::Appearing => {
+            let mut vals: Vec<i32> = project_ids.into_iter().collect();
+            vals.sort_by(|a, b| {
+                if a == &0 {
+                    std::cmp::Ordering::Greater
+                } else if b == &0 {
+                    std::cmp::Ordering::Less
+                } else {
+                    a.cmp(&b)
+                }
+            });
+
+            for x in vals {
+                let project = project_stats.get(&x).unwrap();
+                extend_table(&mut table, project);
+            }
+        }
+        PrintMode::Project => {
+            project_ids.insert(0);
+            let mut vals: Vec<i32> = project_ids.into_iter().collect();
+            vals.sort_by(|a, b| {
+                if a == &0 {
+                    std::cmp::Ordering::Greater
+                } else if b == &0 {
+                    std::cmp::Ordering::Less
+                } else {
+                    a.cmp(&b)
+                }
+            });
+
+            for x in vals {
+                let project = project_stats.get(&x).unwrap();
+                extend_project_table(&mut table, project);
+            }
+        }
+    }
 
     println!("{table}");
 }
 
+fn extend_table(table: &mut Table, project: &ProjectStats) {
+    table.add_row(vec![
+        Cell::new("total").set_alignment(CellAlignment::Center),
+        Cell::new(if project.project_id > 0 {
+            project.project_id.to_string()
+        } else {
+            "total".to_string()
+        })
+        .set_alignment(CellAlignment::Center),
+        Cell::new(project.project_name.clone()).set_alignment(CellAlignment::Center),
+        Cell::new(project.username.clone()).set_alignment(CellAlignment::Center),
+        Cell::new(project.clone().planned_time.unwrap_or("null".to_string()))
+            .set_alignment(CellAlignment::Center),
+        Cell::new(format!(
+            "{:02}:{:02}:{:02}",
+            project.total_time.num_days(),
+            project.total_time.num_hours() - 24 * project.total_time.num_days(),
+            project.total_time.num_minutes() - project.total_time.num_hours() * 60
+        ))
+        .set_alignment(CellAlignment::Center),
+        Cell::new(format!(
+            "{:02}:{:02}:{:02}",
+            project.total_worked.num_days(),
+            project.total_worked.num_hours() - 24 * project.total_worked.num_days(),
+            project.total_worked.num_minutes() - project.total_worked.num_hours() * 60
+        ))
+        .set_alignment(CellAlignment::Center),
+        Cell::new(project.pause_num).set_alignment(CellAlignment::Center),
+        Cell::new(format!(
+            "{:02}:{:02}:{:02}",
+            project.longest_pause.num_days(),
+            project.longest_pause.num_hours() - 24 * project.longest_pause.num_days(),
+            project.longest_pause.num_minutes() - 60 * project.longest_pause.num_hours()
+        ))
+        .set_alignment(CellAlignment::Center),
+        Cell::new(format!(
+            "{:02}:{:02}:{:02}",
+            project.longest_work.num_days(),
+            project.longest_work.num_hours() - 24 * project.longest_work.num_days(),
+            project.longest_work.num_minutes() - 60 * project.longest_work.num_hours()
+        ))
+        .set_alignment(CellAlignment::Center),
+    ]);
+}
+
+fn extend_project_table(table: &mut Table, project: &ProjectStats) {
+    table.add_row(vec![
+        Cell::new(if project.project_id == 0 {
+            "total".to_string()
+        } else {
+            project.project_id.to_string()
+        })
+        .set_alignment(CellAlignment::Center),
+        Cell::new(project.project_name.clone()).set_alignment(CellAlignment::Center),
+        Cell::new(project.username.clone()).set_alignment(CellAlignment::Center),
+        Cell::new(project.total_tasks).set_alignment(CellAlignment::Center),
+        Cell::new(project.completed_tasks).set_alignment(CellAlignment::Center),
+        Cell::new(format!(
+            "{:02}:{:02}:{:02}",
+            project.total_worked.num_days(),
+            project.total_worked.num_hours() - 24 * project.total_worked.num_days(),
+            project.total_worked.num_minutes() - project.total_worked.num_hours() * 60
+        ))
+        .set_alignment(CellAlignment::Center),
+    ]);
+}
 
 fn get_stats_map(
     all_projects: Option<Vec<Project>>,
-    stats:Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>,
-) -> (HashMap<i32, ProjectStats>,Vec<TaskStats>) {
+    stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>,
+) -> (HashMap<i32, ProjectStats>, Vec<TaskStats>) {
     let mut project_stats = HashMap::new();
     let mut task_stats = vec![];
     if let Some(x) = all_projects {
@@ -213,6 +312,7 @@ fn get_stats_map(
                 longest_pause: Duration::new(0, 0).unwrap_or_default(),
                 longest_work: Duration::new(0, 0).unwrap_or_default(),
                 total_tasks: 0,
+                completed_tasks: 0,
             };
 
             project_stats.insert(project.project_id, new_project_stats);
@@ -230,6 +330,7 @@ fn get_stats_map(
         longest_pause: Duration::new(0, 0).unwrap_or_default(),
         longest_work: Duration::new(0, 0).unwrap_or_default(),
         total_tasks: 0,
+        completed_tasks: 0,
     };
     project_stats.insert(0, total_stats.clone());
 
@@ -237,214 +338,6 @@ fn get_stats_map(
         Err(x) => println!("{}", x),
         Ok(result) => {
             let mut i = 1;
-            let mut pause_num = 0;
-            let mut longest_pause = Duration::seconds(0);
-            let mut longest_work = Duration::seconds(0);
-            let mut begin = result[i].3.unwrap_or_default();
-            let mut total_time = Duration::seconds(0);
-            let mut total_worked = Duration::seconds(0);
-            while i < result.len() {
-                pause_num = 0;
-                longest_pause = Duration::seconds(0);
-                longest_work = Duration::seconds(0);
-                begin = result[i - 1].3.unwrap_or_default();
-                total_time = Duration::seconds(0);
-                total_worked = Duration::seconds(0);
-                while i < result.len() && &result[i].0.task_id == &result[i - 1].0.task_id {
-                    if <Option<String> as Clone>::clone(&result[i].2).unwrap_or("".to_string())
-                        == Commands::Pause.to_string()
-                        || (<Option<String> as Clone>::clone(&result[i].2).unwrap_or_default()
-                            == Commands::End.to_string()
-                            && <Option<String> as Clone>::clone(&result[i - 1].2)
-                                .unwrap_or("".to_string())
-                                != Commands::Pause.to_string())
-                    {
-                        let slot = result[i]
-                            .3
-                            .unwrap_or_default()
-                            .signed_duration_since(result[i - 1].3.unwrap_or_default());
-                        longest_work = max(longest_work, slot);
-                        total_worked += slot;
-                        if <Option<String> as Clone>::clone(&result[i].2).unwrap_or("".to_string())
-                            == Commands::Pause.to_string()
-                        {
-                            pause_num += 1;
-                        }
-                    } else if <Option<String> as Clone>::clone(&result[i].2)
-                        .unwrap_or("".to_string())
-                        == Commands::Resume.to_string()
-                        || (<Option<String> as Clone>::clone(&result[i].2).unwrap_or_default()
-                            == Commands::End.to_string()
-                            && <Option<String> as Clone>::clone(&result[i - 1].2)
-                                .unwrap_or("".to_string())
-                                == Commands::Pause.to_string())
-                    {
-                        let slot = result[i]
-                            .3
-                            .unwrap_or_default()
-                            .signed_duration_since(result[i - 1].3.unwrap_or_default());
-                        longest_pause = max(longest_pause, slot);
-                    }
-
-                    total_time = result[i].3.unwrap_or_default().signed_duration_since(begin);
-                    i += 1;
-                }
-
-                let new_task_stats = TaskStats {
-                    task_id: result[i - 1].0.task_id,
-                    project_id: result[i - 1].0.project_id.clone(),
-                    task_name: result[i - 1].clone().0.task_name,
-                    username: result[i - 1].0.username.clone(),
-                    planned_time: result[i - 1].clone().0.planned_time,
-                    total_time,
-                    total_worked,
-                    pause_num,
-                    longest_pause,
-                    longest_work,
-                };
-
-                task_stats.push(new_task_stats);
-
-                let new_project_stats = project_stats.get_mut(&result[i - 1].0.project_id).unwrap();
-                new_project_stats.total_time += total_time;
-                new_project_stats.total_worked += total_worked;
-                new_project_stats.pause_num += pause_num;
-                new_project_stats.longest_pause =
-                    max(new_project_stats.longest_pause, longest_pause);
-                new_project_stats.longest_work = max(longest_work, new_project_stats.longest_work);
-                new_project_stats.total_tasks += 1;
-
-                let total_stats = project_stats.get_mut(&0).unwrap();
-
-                total_stats.total_time += total_time;
-                total_stats.total_worked += total_worked;
-                total_stats.pause_num += pause_num;
-                total_stats.longest_pause = max(total_stats.longest_pause, longest_pause);
-                total_stats.longest_work = max(longest_work, total_stats.longest_work);
-                total_stats.total_tasks += 1;
-
-                i += 1;
-            }
-            if i<=result.len(){
-                let new_project_stats = project_stats.get_mut(&result[i - 1].0.project_id).unwrap();
-                new_project_stats.total_time += total_time;
-                new_project_stats.total_worked += total_worked;
-                new_project_stats.pause_num += pause_num;
-                new_project_stats.longest_pause = max(new_project_stats.longest_pause, longest_pause);
-                new_project_stats.longest_work = max(longest_work, new_project_stats.longest_work);
-                new_project_stats.total_tasks += 1;
-
-                let total_stats = project_stats.get_mut(&0).unwrap();
-                total_stats.total_time += total_time;
-                total_stats.total_worked += total_worked;
-                total_stats.pause_num += pause_num;
-                total_stats.longest_pause = max(total_stats.longest_pause, longest_pause);
-                total_stats.longest_work = max(longest_work, total_stats.longest_work);
-                total_stats.total_tasks += 1;
-
-                let new_task_stats = TaskStats {
-                    task_id: result[i - 1].0.task_id,
-                    project_id: result[i - 1].0.project_id.clone(),
-                    task_name: result[i - 1].clone().0.task_name,
-                    username: result[i - 1].0.username.clone(),
-                    planned_time: result[i - 1].clone().0.planned_time,
-                    total_time,
-                    total_worked,
-                    pause_num,
-                    longest_pause,
-                    longest_work,
-                };
-
-                task_stats.push(new_task_stats);
-            }
-        }
-    }
-
-    (project_stats, task_stats)
-}
-
-pub fn display_day_stats(args: &[String]) {
-    let mut date_to_seek = Local::now().naive_local().date();
-    if args.len() > 0 {
-        if args[0] != "-d" && args[0] != "-day" {
-            println!("Wrong option!");
-            return;
-        }
-
-        if args.len() < 2 {
-            println!("Too little arguments for this option!");
-            return;
-        }
-        println!("{}", &args[1]);
-
-        let seeked_date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d");
-        if let Err(_) = seeked_date {
-            println!("Couldn't parse the date format, giving results for current day");
-        }
-
-        date_to_seek = seeked_date.unwrap_or(Local::now().naive_local().date());
-    }
-
-    let projects=get_projects();
-    // let stats = db_operations::stats::get_day_stats_tasks(date_to_seek, project.project_id);
-
-    // let (project_stats,task_stats) =get_stats_map(all_projects, stats);
-
-    if let Ok(x)=projects{
-        for project in  x{
-            let stats = db_operations::stats::get_day_stats_tasks(date_to_seek, project.project_id);
-            display_content(stats)            
-        } 
-    }
-
-}
-
-fn project_stats(date_to_seek: NaiveDate, seeked_project_id: i32) {
-    let stats: Result<Vec<(workflow::models::Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> = db_operations::stats::get_day_stats_tasks(date_to_seek, seeked_project_id);
-
-    match stats {
-        Err(x) => println!("{}", x),
-        Ok(result) => {
-            let mut table = Table::new();
-            table
-                .load_preset(UTF8_FULL)
-                .apply_modifier(UTF8_ROUND_CORNERS)
-                .set_content_arrangement(ContentArrangement::Dynamic)
-                .set_header(vec![
-                    Cell::new("task_id")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("project_id")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("task_name")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("user")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("planned_time")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("total time")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("total worked")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("pause num")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("longest pause")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                    Cell::new("longest work")
-                        .set_alignment(CellAlignment::Center)
-                        .fg(Color::Cyan),
-                ]);
-
-            let mut i = 1;
-            // let _beginned=<Option<String> as Clone>::clone(&result[i].2).unwrap_or_default()==Commands::Begin.to_string();
             let mut pause_num = 0;
             let mut longest_pause = Duration::seconds(0);
             let mut longest_work = Duration::seconds(0);
@@ -498,102 +391,139 @@ fn project_stats(date_to_seek: NaiveDate, seeked_project_id: i32) {
                     i += 1;
                 }
 
-                table.add_row(vec![
-                    Cell::new(result[i - 1].0.task_id).set_alignment(CellAlignment::Center),
-                    Cell::new(result[i - 1].0.project_id).set_alignment(CellAlignment::Center),
-                    Cell::new(result[i - 1].0.task_name.clone())
-                        .set_alignment(CellAlignment::Center),
-                    Cell::new(result[i - 1].0.username.clone())
-                        .set_alignment(CellAlignment::Center),
-                    Cell::new(
-                        result[i - 1]
-                            .clone()
-                            .0
-                            .planned_time
-                            .unwrap_or("null".to_string()),
-                    )
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        total_time.num_days(),
-                        total_time.num_hours() - 24 * total_time.num_days(),
-                        total_time.num_minutes() - total_time.num_hours() * 60
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        total_worked.num_days(),
-                        total_worked.num_hours() - 24 * total_worked.num_days(),
-                        total_worked.num_minutes() - total_worked.num_hours() * 60
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(pause_num).set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        longest_pause.num_days(),
-                        longest_pause.num_hours() - 24 * longest_pause.num_days(),
-                        longest_pause.num_minutes() - 60 * longest_pause.num_hours()
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        longest_work.num_days(),
-                        longest_work.num_hours() - 24 * longest_work.num_days(),
-                        longest_work.num_minutes() - 60 * longest_work.num_hours()
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                ]);
+                if <Option<String> as Clone>::clone(&result[i - 1].2).unwrap_or_default()
+                    == Commands::End.to_string()
+                {
+                    let new_project_stats =
+                        project_stats.get_mut(&result[i - 1].0.project_id).unwrap();
+                    new_project_stats.completed_tasks += 1;
+                }
+
+                let new_task_stats = TaskStats {
+                    task_id: result[i - 1].0.task_id,
+                    project_id: result[i - 1].0.project_id.clone(),
+                    task_name: result[i - 1].clone().0.task_name,
+                    username: result[i - 1].0.username.clone(),
+                    planned_time: result[i - 1].clone().0.planned_time,
+                    total_time,
+                    total_worked,
+                    pause_num,
+                    longest_pause,
+                    longest_work,
+                };
+
+                task_stats.push(new_task_stats);
+
+                let new_project_stats = project_stats.get_mut(&result[i - 1].0.project_id).unwrap();
+                new_project_stats.total_time += total_time;
+                new_project_stats.total_worked += total_worked;
+                new_project_stats.pause_num += pause_num;
+                new_project_stats.longest_pause =
+                    max(new_project_stats.longest_pause, longest_pause);
+                new_project_stats.longest_work = max(longest_work, new_project_stats.longest_work);
+                new_project_stats.total_tasks += 1;
+
+                let total_stats = project_stats.get_mut(&0).unwrap();
+
+                total_stats.total_time += total_time;
+                total_stats.total_worked += total_worked;
+                total_stats.pause_num += pause_num;
+                total_stats.longest_pause = max(total_stats.longest_pause, longest_pause);
+                total_stats.longest_work = max(longest_work, total_stats.longest_work);
+                total_stats.total_tasks += 1;
 
                 i += 1;
             }
             if i <= result.len() {
-                table.add_row(vec![
-                    Cell::new(result[i - 1].0.task_id).set_alignment(CellAlignment::Center),
-                    Cell::new(result[i - 1].0.project_id).set_alignment(CellAlignment::Center),
-                    Cell::new(result[i - 1].0.task_name.clone())
-                        .set_alignment(CellAlignment::Center),
-                    Cell::new(result[i - 1].0.username.clone())
-                        .set_alignment(CellAlignment::Center),
-                    Cell::new(
-                        result[i - 1]
-                            .clone()
-                            .0
-                            .planned_time
-                            .unwrap_or("null".to_string()),
-                    )
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        total_time.num_days(),
-                        total_time.num_hours() - 24 * total_time.num_days(),
-                        total_time.num_minutes() - total_time.num_hours() * 60
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        total_worked.num_days(),
-                        total_worked.num_hours() - 24 * total_worked.num_days(),
-                        total_worked.num_minutes() - total_worked.num_hours() * 60
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(pause_num).set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        longest_pause.num_days(),
-                        longest_pause.num_hours() - 24 * longest_pause.num_days(),
-                        longest_pause.num_minutes() - 60 * longest_pause.num_hours()
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                    Cell::new(format!(
-                        "{}:{}:{}",
-                        longest_work.num_days(),
-                        longest_work.num_hours() - 24 * longest_work.num_days(),
-                        longest_work.num_minutes() - 60 * longest_work.num_hours()
-                    ))
-                    .set_alignment(CellAlignment::Center),
-                ]);
+                let new_project_stats = project_stats.get_mut(&result[i - 1].0.project_id).unwrap();
+                new_project_stats.total_time += total_time;
+                new_project_stats.total_worked += total_worked;
+                new_project_stats.pause_num += pause_num;
+                new_project_stats.longest_pause =
+                    max(new_project_stats.longest_pause, longest_pause);
+                new_project_stats.longest_work = max(longest_work, new_project_stats.longest_work);
+                new_project_stats.total_tasks += 1;
+
+                let total_stats = project_stats.get_mut(&0).unwrap();
+                total_stats.total_time += total_time;
+                total_stats.total_worked += total_worked;
+                total_stats.pause_num += pause_num;
+                total_stats.longest_pause = max(total_stats.longest_pause, longest_pause);
+                total_stats.longest_work = max(longest_work, total_stats.longest_work);
+                total_stats.total_tasks += 1;
+
+                let new_task_stats = TaskStats {
+                    task_id: result[i - 1].0.task_id,
+                    project_id: result[i - 1].0.project_id.clone(),
+                    task_name: result[i - 1].clone().0.task_name,
+                    username: result[i - 1].0.username.clone(),
+                    planned_time: result[i - 1].clone().0.planned_time,
+                    total_time,
+                    total_worked,
+                    pause_num,
+                    longest_pause,
+                    longest_work,
+                };
+                if <Option<String> as Clone>::clone(&result[i - 1].2).unwrap_or_default()
+                    == Commands::End.to_string()
+                {
+                    let new_project_stats =
+                        project_stats.get_mut(&result[i - 1].0.project_id).unwrap();
+                    new_project_stats.completed_tasks += 1;
+                }
+
+                task_stats.push(new_task_stats);
             }
-            println!("{table}");
+        }
+    }
+
+    (project_stats, task_stats)
+}
+
+pub fn display_day_stats(args: &[String]) {
+    let mut date_to_seek = Local::now().naive_local().date();
+    if args.len() > 0 {
+        if args[0] != "-d" && args[0] != "-day" {
+            println!("Wrong option!");
+            return;
+        }
+
+        if args.len() < 2 {
+            println!("Too little arguments for this option!");
+            return;
+        }
+
+        let seeked_date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d");
+        if let Err(_) = seeked_date {
+            println!("Couldn't parse the date format, giving results for current day");
+        }
+
+        date_to_seek = seeked_date.unwrap_or(Local::now().naive_local().date());
+    }
+
+    let projects = get_date_projects(date_to_seek);
+
+    if let Ok(x) = projects {
+        let stats = db_operations::stats::get_day_stats_tasks(date_to_seek, None);
+
+        if x.len() > 0 {
+            if date_to_seek == Local::now().naive_local().date() {
+                print!("Today ");
+            } else {
+                print!("On {} ", date_to_seek);
+            }
+            println!("you worked on the following {} projects:", x.len());
+            display_content(stats, PrintMode::Project);
+            println!("In details:");
+        }else{
+            println!("Today you didn't work on any projects");
+        }
+
+        for project in x {
+            println!("Project {}:", project.project_id);
+            let stats =
+                db_operations::stats::get_day_stats_tasks(date_to_seek, Some(project.project_id));
+            display_content(stats, PrintMode::Appearing)
         }
     }
 }

@@ -1,5 +1,4 @@
 use std::env;
-use std::process;
 
 
 pub mod db_operations;
@@ -7,6 +6,7 @@ pub mod projects;
 pub mod tasks;
 pub mod stats;
 pub mod logs;
+pub mod apps;
 
 
 
@@ -75,7 +75,7 @@ fn main(){
 
     let command=Commands::from(args[1].clone());
     match command{
-        Commands::AddApp =>add_app(&args[2..],true),
+        Commands::AddApp =>apps::add_app(&args[2..],true),
         Commands::AddTask=>tasks::add_task(args),
         Commands::AllTasks=>tasks::display_tasks(),
         Commands::Begin | Commands::End | Commands::Pause | Commands::Resume=>logs::add_log(args,command),
@@ -124,29 +124,6 @@ COMMANDS:
 ");
 }
 
-
-fn add_app(args:&[String], display_communicates:bool){
-    if args.len()<1{
-        eprintln!("Too few args");
-        process::exit(-1);
-    }
-
-    for x in args{
-        match db_operations::apps::find_app(x){
-            Ok(None) =>{
-                    match db_operations::apps::add_app(&(x.to_lowercase()),display_communicates){
-                        Err(x)=> println!("{}",x),
-                        _=>()
-                    }
-                },
-            Ok(Some(_a))=>{if display_communicates{ println!("App {} already in db",x);}},
-            Err(_)=>{println!("An error occured while fetching app {}", x);}
-        };
-            
-    }
-
-
-}
 
 
 

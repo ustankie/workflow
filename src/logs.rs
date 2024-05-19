@@ -2,6 +2,9 @@ use chrono::Local;
 use crate::db_operations;
 use crate::Commands;
 use std::process;
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL;
+use comfy_table::*;
 
 pub fn display_logs(args:&[String]){
     let a=if args.len()>0 && (args[0]=="-t" || args[0]=="-tasks"){
@@ -14,19 +17,25 @@ pub fn display_logs(args:&[String]){
     };
     
     if let Ok(x)=a{
-        println!(
-            "-------------------------------------------------------------------------------"
-        );
-        println!(
-            "{: <10} | {: <10} | {: <10} | {: <10}",
-            "log_id", "task_id", "log_type", "date"
-        );
-        println!(
-            "-------------------------------------------------------------------------------"
-        );
+
+        let mut table = Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![Cell::new("log_id").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+            Cell::new("task_id").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+             Cell::new("log_type").set_alignment(CellAlignment::Center).fg(Color::Cyan), 
+             Cell::new("date").set_alignment(CellAlignment::Center).fg(Color::Cyan)]);
         for row in x{
-            println!("{: <10} | {: <10} | {: <10} | {: <10}", row.log_id,row.task_id,row.log_type,row.date);
+            table.add_row(vec![
+                Cell::new(row.log_id).set_alignment(CellAlignment::Center),
+                Cell::new(row.task_id).set_alignment(CellAlignment::Center),
+                Cell::new(row.log_type).set_alignment(CellAlignment::Center),
+                Cell::new(row.date.format("%Y-%m-%d %H:%M:%S").to_string()).set_alignment(CellAlignment::Center),
+            ]);
         }
+        println!("{table}");
     }
 
 }
