@@ -29,8 +29,11 @@ pub mod tasks;
 pub enum Commands {
     AddProject,
     AllProjects,
+    ProjectApps,
+    ProjectTasks,
     AddTask,
     AddApp,
+    AllApps,
     AddAppToTask,
     AllTasks,
     Begin,
@@ -49,7 +52,8 @@ impl From<String> for Commands {
         match input.trim() {
             "newproject" => Commands::AddProject,
             "projects" => Commands::AllProjects,
-            "app" => Commands::AddApp,
+            "newapp" => Commands::AddApp,
+            "apps" => Commands::AllApps,
             "newtask" => Commands::AddTask,
             "tasks" => Commands::AllTasks,
             "logs" => Commands::Logs,
@@ -61,6 +65,8 @@ impl From<String> for Commands {
             "resume" => Commands::Resume,
             "man" => Commands::Man,
             "day" => Commands::Day,
+            "projectapps"=>Commands::ProjectApps,
+            "projecttasks"=>Commands::ProjectTasks,
             _ => Commands::NoSuchCommand,
         }
     }
@@ -100,6 +106,9 @@ fn main() {
         Commands::AddProject => projects::add_project(args),
         Commands::AllProjects => projects::display_projects(),
         Commands::Day => stats::display_day_stats(&args[2..]),
+        Commands::AllApps=> apps::display_apps(&args[2..]),
+        Commands::ProjectApps=> projects::display_project_apps(),
+        Commands::ProjectTasks=>projects::display_project_tasks(&args[2..]),
         Commands::NoSuchCommand => {
             println!("Wrong command!");
         }

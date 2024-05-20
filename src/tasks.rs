@@ -12,7 +12,7 @@ pub fn add_task(args:Vec<String>){
         process::exit(-1);
     }
     let time_regex=Regex::new(r"^\d+:\d+:\d+$").unwrap();
-    let arg_regex=Regex::new(r"-.*").unwrap();
+    let arg_regex: Regex=Regex::new(r"-.*").unwrap();
     let project_id_regex=Regex::new(r"^\d+").unwrap();
 
     if arg_regex.is_match(&args[2]){

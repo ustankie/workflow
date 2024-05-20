@@ -20,14 +20,14 @@ pub struct Task {
     pub planned_time: Option<String>
 }
 
-#[derive(Queryable, Selectable)]
+#[derive(Queryable, Selectable, Debug,Clone)]
 #[diesel(table_name = crate::schema::apps)]
 pub struct App {
     pub app_id: i32,
     pub app_name: String,
 }
 
-#[derive(Queryable, Selectable)]
+#[derive(Queryable, Selectable, Debug,Clone)]
 #[diesel(table_name = crate::schema::project_apps)]
 pub struct ProjectApp {
     pub id: i32,

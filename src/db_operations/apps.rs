@@ -1,9 +1,12 @@
 use self::models::App;
 use self::schema::apps::dsl::*;
+use diesel::dsl::sql;
+use diesel::prelude::QueryDsl;
 use diesel::prelude::*;
 use workflow::*;
-use diesel::prelude::QueryDsl;
 
+use diesel::sql_types::Int4;
+use diesel::sql_types::Nullable;
 use diesel::result::Error;
 use std::process;
 
@@ -59,10 +62,7 @@ pub fn add_multiple_apps(
     Ok(ids)
 }
 
-
 pub fn find_app(_app_name: &str) -> Result<Option<App>, &'static str> {
-    
-
     let connection = &mut establish_connection();
     find_app_body(_app_name, connection)
 }
@@ -86,5 +86,29 @@ fn find_app_body(
     }
 }
 
+pub fn get_app_stats(
+    _args: &[String],
+) -> Result<Vec<(App, Option<i32>)>, &'static str> {
+    use workflow::schema::project_apps::dsl::project_apps;
 
+    let connection: &mut PgConnection = &mut establish_connection();
 
+    let result=
+    workflow::schema::apps::dsl::apps
+        .left_join(
+            project_apps
+                .on(workflow::schema::project_apps::app_id.eq(workflow::schema::apps::app_id)),
+        )
+        .order((workflow::schema::apps::app_id.asc(),))
+        .group_by(workflow::schema::apps::app_id)
+        .select((
+            App::as_select(),
+            sql::<Nullable<Int4>>("cast(count(project_apps.project_id)as integer)"),
+        ))
+        .load::<(App, Option<i32>)>(connection);
+
+    match result {
+        Ok(x) => Ok(x),
+        Err(_) => Err("An error occurred while fetching apps"),
+    }
+}

@@ -532,7 +532,7 @@ pub fn display_day_stats(args: &[String]) {
 
         if x.len() > 0 {
             if date_to_seek == Local::now().naive_local().date() {
-                print!("Today ");
+                print!("Today ({})", date_to_seek);
             } else {
                 print!("On {} ", date_to_seek);
             }

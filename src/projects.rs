@@ -2,7 +2,9 @@ use std::process;
 use chrono::NaiveDateTime;
 use regex::Regex;
 use workflow::models::Task;
-use crate::stats;
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL;
+use comfy_table::*;use crate::stats;
 
 
 use crate::db_operations;
@@ -65,4 +67,198 @@ pub fn display_projects(){
     let _a=db_operations::projects::get_projects();
     let stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> = db_operations::stats::get_stats(&[]);
     stats::display_content(stats, stats::PrintMode::Project);
+}
+
+pub fn display_project_apps(){
+    let project_apps=db_operations::projects::get_apps_in_projects();
+
+    let project_apps=project_apps.ok().unwrap_or(vec![]);
+    if project_apps.len()==0{
+        println!("No apps in the projects!");
+
+        return;
+    }
+
+    let mut prev_project_id=0;
+
+    let mut table = Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![Cell::new("project_id").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+            Cell::new("project_name").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+             Cell::new("app_name").set_alignment(CellAlignment::Center).fg(Color::Cyan), 
+             ]);
+    let mut app_count=0;
+    let mut prev_color=Color::DarkGreen;
+    let mut cur_color=Color::DarkCyan;
+    for (project, app_name) in project_apps{
+        if project.project_id!=prev_project_id {
+            if  prev_project_id!=0{
+                table.add_row(vec![
+                    Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+                    Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+                    Cell::new(app_count).set_alignment(CellAlignment::Center).fg(cur_color),
+                ]);
+            }
+            (cur_color, prev_color)=(prev_color, cur_color);
+
+            table.add_row(vec![
+                Cell::new(project.project_id).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(project.project_name).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(app_name.clone().unwrap_or("null".to_string())).set_alignment(CellAlignment::Center).fg(cur_color),
+            ]);
+            app_count=0;
+
+           
+        }else{
+            table.add_row(vec![
+                Cell::new(project.project_id).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(project.project_name).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(app_name.clone().unwrap_or("null".to_string())).set_alignment(CellAlignment::Center).fg(cur_color),
+            ]);
+        }
+
+
+
+        prev_project_id=project.project_id;
+        if app_name.is_some(){
+            app_count+=1;
+        }
+        
+    }
+
+    table.add_row(vec![
+        Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+        Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+        Cell::new(app_count).set_alignment(CellAlignment::Center).fg(cur_color),
+    ]);
+    println!("{}",table);
+}
+
+
+pub fn display_project_tasks(args: &[String]){
+    let project_regex=Regex::new(r"\d+").unwrap();
+    let arg_regex: Regex=Regex::new(r"-.*").unwrap();
+    let mut i=0;
+    let mut seeked_project_id: Option<Vec<i32>>=None;
+    let mut found_project=false;
+    let mut ended:Option<bool>=None;
+    while i<args.len(){
+        match &args[i][..]{
+            "-p" => {
+                    i+=1;
+                    let mut project_ids=vec![];
+                    if found_project{
+                        eprintln!("Error: Multiple usage of the same options");
+                        return;
+                    }
+                    while i<args.len() && !arg_regex.is_match(&args[i]){
+
+                        if !project_regex.is_match(&args[i]){
+                            println!("Project id should be integer!");
+                            return 
+                        }
+                        project_ids.push(args[i].parse::<i32>().expect("Couldn't parse project_id"));
+                        
+                        i+=1;
+                    }
+
+                    seeked_project_id=Some(project_ids);
+
+                    found_project=true;
+                },
+            "-e" => {
+                    ended=Some(true);
+                    i+=1;
+                }
+            "-ne" => {
+                    ended=Some(false);
+                    i+=1;
+                }
+            _=>{println!("Unknown argument '{}': try again",&args[i]); 
+                process::exit(-1);
+                }
+        }
+        
+    }
+
+
+
+    let project_tasks=db_operations::projects::get_tasks_in_projects(seeked_project_id.clone(), ended);
+
+    let project_tasks=project_tasks.ok().unwrap_or(vec![]);
+    if project_tasks.len()==0 {
+        if seeked_project_id.is_none()|| seeked_project_id.clone().unwrap().len()>0{
+            println!("No tasks in these projects!");
+
+        }else {
+            println!("No tasks in this project!");
+        }
+        return;
+    }
+    
+
+    let mut prev_project_id=0;
+
+    let mut table = Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![Cell::new("project_id").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+            Cell::new("project_name").set_alignment(CellAlignment::Center).fg(Color::Cyan),
+             Cell::new("task_name").set_alignment(CellAlignment::Center).fg(Color::Cyan), 
+             ]);
+    let mut task_count=0;
+    let mut prev_color=Color::DarkGreen;
+    let mut cur_color=Color::DarkCyan;
+    for (project, task_name, _planned_time) in project_tasks{
+        if project.project_id!=prev_project_id {
+            if  prev_project_id!=0{
+                table.add_row(vec![
+                    Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+                    Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+                    Cell::new(task_count).set_alignment(CellAlignment::Center).fg(cur_color),
+
+                ]);
+            }
+            (cur_color, prev_color)=(prev_color, cur_color);
+
+            table.add_row(vec![
+                Cell::new(project.project_id).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(project.project_name).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(task_name.clone().unwrap_or("null".to_string())).set_alignment(CellAlignment::Center).fg(cur_color),
+
+            ]);
+            task_count=0;
+
+           
+        }else{
+            table.add_row(vec![
+                Cell::new(project.project_id).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(project.project_name).set_alignment(CellAlignment::Center).fg(cur_color),
+                Cell::new(task_name.clone().unwrap_or("null".to_string())).set_alignment(CellAlignment::Center).fg(cur_color),
+
+            ]);
+        }
+
+
+
+        prev_project_id=project.project_id;
+        if task_name.is_some(){
+            task_count+=1;
+        }
+        
+
+    }
+
+    table.add_row(vec![
+        Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+        Cell::new("total").set_alignment(CellAlignment::Center).fg(cur_color),
+        Cell::new(task_count).set_alignment(CellAlignment::Center).fg(cur_color),
+
+    ]);
+    println!("{}",table);
 }

@@ -1,9 +1,13 @@
 use crate::db_operations;
+use crate::Commands;
 use chrono::NaiveDate;
-use diesel::dsl::date;
+use diesel::associations::HasTable;
+use diesel::dsl::{date, sql};
 use diesel::prelude::QueryDsl;
 use diesel::prelude::*;
 use diesel::result::Error;
+use diesel::sql_types::Nullable;
+use diesel::sql_types::Text;
 use workflow::models::*;
 use workflow::*;
 
@@ -75,7 +79,6 @@ pub fn add_project(
         project_id = project.project_id;
 
         if let Some(x) = project_apps {
-
             let app_ids = match db_operations::apps::add_multiple_apps(x, false, connection) {
                 Ok(x) => x,
                 Err(x) => {
@@ -105,5 +108,95 @@ pub fn add_project(
             println!("{}", x);
             return Err("Database error occurred");
         }
+    }
+}
+
+pub fn get_apps_in_projects() -> Result<Vec<(Project, Option<String>)>, &'static str> {
+    use workflow::schema::*;
+
+    let connection: &mut PgConnection = &mut establish_connection();
+
+    let result = projects::dsl::projects
+        .left_join(
+            project_apps::dsl::project_apps::table()
+                .on(project_apps::dsl::project_id.eq(projects::dsl::project_id)),
+        )
+        .left_join(apps::dsl::apps::table().on(apps::dsl::app_id.eq(project_apps::dsl::app_id)))
+        .order(projects::dsl::project_id.asc())
+        .select((Project::as_select(), sql::<Nullable<Text>>("apps.app_name")))
+        .distinct()
+        .load::<(Project, Option<String>)>(connection);
+
+    match result {
+        Ok(x) => Ok(x),
+        Err(_) => Err("An error occurred while fetching apps"),
+    }
+}
+
+pub fn get_tasks_in_projects(
+    project_ids: Option<Vec<i32>>,
+    ended: Option<bool>,
+) -> Result<Vec<(Project, Option<String>, Option<String>)>, &'static str> {
+    use workflow::schema::*;
+
+    let connection: &mut PgConnection = &mut establish_connection();
+
+    let mut result = projects::dsl::projects
+        .left_join(
+            tasks::dsl::tasks::table().on(tasks::dsl::project_id.eq(projects::dsl::project_id)),
+        )
+        .left_join(log::dsl::log::table().on(tasks::dsl::task_id.eq(log::dsl::task_id)))
+        .into_boxed();
+    let mut sub_query = projects::dsl::projects
+        .left_join(
+            tasks::dsl::tasks::table().on(tasks::dsl::project_id.eq(projects::dsl::project_id)),
+        )
+        .left_join(
+            workflow::schema::log::table.on(workflow::schema::tasks::task_id
+                .eq(workflow::schema::log::task_id)
+                .and(workflow::schema::log::log_type.eq(Commands::End.to_string()))),
+        )
+        .into_boxed();
+    if project_ids.is_some() {
+        let seeked_ids = project_ids.unwrap();
+        result = result.filter(workflow::schema::tasks::project_id.eq_any(seeked_ids.clone()));
+        sub_query=sub_query.filter(workflow::schema::tasks::project_id.eq_any(seeked_ids));
+    }
+
+    let result = if ended.is_some() && ended.unwrap() {
+        result.filter(workflow::schema::log::log_type.eq(Commands::End.to_string()))
+            .order(projects::dsl::project_id.asc())
+            .select((
+                Project::as_select(),
+                sql::<Nullable<Text>>("tasks.task_name"),
+                sql::<Nullable<Text>>("tasks.planned_time"),
+            ))
+            .distinct()
+            .load::<(Project, Option<String>, Option<String>)>(connection)
+    } else if ended.is_some() && !ended.unwrap() {
+        sub_query.filter(workflow::schema::log::task_id.is_null())
+            .order(projects::dsl::project_id.asc())
+            .select((
+                Project::as_select(),
+                sql::<Nullable<Text>>("tasks.task_name"),
+                sql::<Nullable<Text>>("tasks.planned_time"),
+            ))
+            .distinct()
+            .load::<(Project, Option<String>, Option<String>)>(connection)
+    } else {
+        result.order(projects::dsl::project_id.asc())
+            .select((
+                Project::as_select(),
+                sql::<Nullable<Text>>("tasks.task_name"),
+                sql::<Nullable<Text>>("tasks.planned_time"),
+            ))
+            .distinct()
+            .load::<(Project, Option<String>, Option<String>)>(connection)
+    };
+
+        
+    match result {
+        Ok(x) => Ok(x),
+        Err(_) => Err("An error occurred while fetching apps"),
     }
 }
