@@ -7,6 +7,14 @@ A project facilitating workflow control from terminal
 The data is stored in a PostgreSQL database that has a following schema:   
 ![db_schema](images/db_schema.png)
 
+## Allowed order of logs
+Only certain orders of logs are possible:
+- if task was ended (last log is "E"), no log can be made for this task
+- if task was not started (no recent logs), only begin command can be issued (log "B")
+- task may be paused if recent log is "B" or "R" (begin or resume)
+- task may be resumed only if it was paused (recent log is "P")
+- task may be ended in any moment provided it was started
+
 ## Available commands
 - newproject NAME- creates new project
     OPTIONS:

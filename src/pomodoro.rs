@@ -146,7 +146,7 @@ pub fn pomodoro(args: &[String]) {
                 (term).store(false, Ordering::Relaxed);
             }
         }
-        print!("\x07");
+        
 
         let time_str: String = count_time.format("%H:%M:%S").to_string();
         stdout.execute(cursor::MoveTo(0, 0)).unwrap();
@@ -193,6 +193,9 @@ fn show_clock(count_time: &mut NaiveTime, term: &Arc<AtomicBool>) {
         *count_time = *count_time - chrono::Duration::seconds(1);
 
         thread::sleep(one_sec);
+    }
+    if *count_time==zero_secs{
+        print!("\x07");
     }
 }
 fn clock_stopped(
@@ -496,7 +499,7 @@ fn clear_terminal(commands_num: &mut i32, line_count: i32) {
         .execute(cursor::MoveDown((line_count - 1) as u16))
         .unwrap();
     stdout
-        .execute(terminal::Clear(terminal::ClearType::FromCursorDown))
+        .execute(terminal::Clear(terminal::ClearType::All))
         .unwrap();
     *commands_num = 2;
 }

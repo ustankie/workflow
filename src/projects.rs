@@ -68,7 +68,7 @@ pub fn display_projects() {
     let _a = db_operations::projects::get_projects();
     let stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> =
         db_operations::stats::get_stats(&[]);
-    stats::display_content(stats, stats::PrintMode::Project, None);
+    stats::display_content(stats, stats::PrintMode::AllProjects, None);
 }
 
 pub fn display_project_apps() {

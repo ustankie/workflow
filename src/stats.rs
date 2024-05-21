@@ -16,6 +16,7 @@ pub enum PrintMode {
     All,
     Appearing,
     Project,
+    AllProjects,
     ConcreteTasks,
 }
 
@@ -63,7 +64,7 @@ pub fn display_content(
     let (project_stats, task_stats) = get_stats_map(all_projects, stats);
 
     let mut table = Table::new();
-    if let PrintMode::Project = print_mode {
+    if let PrintMode::Project | PrintMode::AllProjects = print_mode {
         table
             .load_preset(UTF8_FULL)
             .apply_modifier(UTF8_ROUND_CORNERS)
@@ -172,7 +173,7 @@ pub fn display_content(
     let mut project_ids = HashSet::new();
 
     for task in task_stats {
-        if let PrintMode::Project = print_mode {
+        if let PrintMode::Project |PrintMode::AllProjects= print_mode {
         } else if let PrintMode::ConcreteTasks = print_mode {
             if let Some(ref x) = concrete_tasks {
                 if x.contains(&task.task_id) {
@@ -320,7 +321,23 @@ pub fn display_content(
             }
         }
 
-        PrintMode::ConcreteTasks => {}
+        PrintMode::ConcreteTasks => {},
+        PrintMode::AllProjects => {
+            let mut vals: Vec<ProjectStats> = project_stats.values().cloned().collect();
+            vals.sort_by(|a, b| {
+                if a.project_id == 0 {
+                    std::cmp::Ordering::Greater
+                } else if b.project_id == 0 {
+                    std::cmp::Ordering::Less
+                } else {
+                    a.project_id.cmp(&b.project_id)
+                }
+            });
+
+            for project in vals {
+                extend_project_table(&mut table, &project);
+            }
+        }
     }
 
     println!("{table}");
@@ -515,7 +532,8 @@ fn get_stats_map(
                     longest_work,
                     since_last_log: Local::now()
                         .naive_local()
-                        .signed_duration_since(result[i - 1].3.unwrap_or_default()),
+                        .signed_duration_since(result[i - 1].3.unwrap_or(Local::now()
+                        .naive_local())),
                     percent: 0.3,
                 };
 
@@ -572,7 +590,8 @@ fn get_stats_map(
                     longest_work,
                     since_last_log: Local::now()
                         .naive_local()
-                        .signed_duration_since(result[i - 1].3.unwrap_or_default()),
+                        .signed_duration_since(result[i - 1].3.unwrap_or(Local::now()
+                        .naive_local())),
                     percent: 0.3,
                 };
                 if <Option<String> as Clone>::clone(&result[i - 1].2).unwrap_or_default()
