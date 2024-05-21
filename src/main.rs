@@ -112,7 +112,7 @@ fn main() {
         Commands::AllApps=> apps::display_apps(&args[2..]),
         Commands::ProjectApps=> projects::display_project_apps(),
         Commands::ProjectTasks=>projects::display_project_tasks(&args[2..]),
-        Commands::Pomodoro=>pomodoro::pomodoro(),
+        Commands::Pomodoro=>pomodoro::pomodoro(&args[2..]),
         Commands::NoSuchCommand => {
             println!("Wrong command!");
         }

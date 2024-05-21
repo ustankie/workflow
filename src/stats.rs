@@ -57,7 +57,7 @@ pub fn display_content(
     stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>,
     print_mode: PrintMode,
     concrete_tasks: Option<Vec<i32>>,
-) {
+)->usize {
     let all_projects = get_projects().ok();
 
     let (project_stats, task_stats) = get_stats_map(all_projects, stats);
@@ -215,8 +215,8 @@ pub fn display_content(
                         Cell::new(format!(
                             "{:02}:{:02}:{:02}",
                             task.since_last_log.num_days(),
-                            task.since_last_log.num_hours() - 24 * task.longest_work.num_days(),
-                            task.since_last_log.num_minutes() - 60 * task.longest_work.num_hours()
+                            task.since_last_log.num_hours() - 24 * task.since_last_log.num_days(),
+                            task.since_last_log.num_minutes() - 60 * task.since_last_log.num_hours()
                         ))
                         .set_alignment(CellAlignment::Center),
                     ]);
@@ -323,6 +323,7 @@ pub fn display_content(
     }
 
     println!("{table}");
+    table.lines().count()
 }
 
 fn extend_table(table: &mut Table, project: &ProjectStats) {
@@ -648,7 +649,7 @@ pub fn display_day_stats(args: &[String]) {
                         date_to_seek,
                         Some(project.project_id),
                     );
-                    display_content(stats, PrintMode::Appearing, None)
+                    display_content(stats, PrintMode::Appearing, None);
                 }
             }
         } else {

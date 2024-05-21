@@ -16,7 +16,7 @@ crossterm = "0.22"
 termion = "*"
 terminal-fonts="0.1.0"
 signal-hook="0.3.17"
-tokio = { version="1.25.0", features=["full"] }
+ctrlc = "3.4"
 
 [dependencies.tui]
 version = "0.16"

@@ -24,6 +24,25 @@ pub fn find_task(task_name_: &str) -> Result<Option<Task>, &'static str> {
     }
 }
 
+pub fn find_task_by_id(task_id_: &i32) -> Result<Option<Task>, &'static str> {
+    
+    use self::schema::tasks::dsl::*;
+    let connection = &mut establish_connection();
+    let app = tasks
+        .filter(task_id.eq(task_id_))
+        .select(Task::as_select())
+        .first(connection);
+
+    match app {
+        Ok(x) => Ok(Some(x)),
+        Err(Error::NotFound) => Ok(None),
+        Err(x) => {
+            println!("{}", x);
+            Err("An error occured while fetching task")
+        }
+    }
+}
+
 pub fn get_tasks() -> Result<Vec<Task>, Error> {
     use self::schema::tasks::dsl::tasks;
 
