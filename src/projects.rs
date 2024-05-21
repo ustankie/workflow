@@ -95,6 +95,9 @@ pub fn display_project_apps() {
             Cell::new("project_name")
                 .set_alignment(CellAlignment::Center)
                 .fg(Color::Cyan),
+            Cell::new("app_id")
+                .set_alignment(CellAlignment::Center)
+                .fg(Color::Cyan),
             Cell::new("app_name")
                 .set_alignment(CellAlignment::Center)
                 .fg(Color::Cyan),
@@ -102,10 +105,13 @@ pub fn display_project_apps() {
     let mut app_count = 0;
     let mut prev_color = Color::DarkGreen;
     let mut cur_color = Color::DarkCyan;
-    for (project, app_name) in project_apps {
+    for (project, app_name, app_id) in project_apps {
         if project.project_id != prev_project_id {
             if prev_project_id != 0 {
                 table.add_row(vec![
+                    Cell::new("total")
+                        .set_alignment(CellAlignment::Center)
+                        .fg(cur_color),
                     Cell::new("total")
                         .set_alignment(CellAlignment::Center)
                         .fg(cur_color),
@@ -126,6 +132,13 @@ pub fn display_project_apps() {
                 Cell::new(project.project_name)
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
+                Cell::new(
+                    app_id
+                        .map(|id| id.to_string())
+                        .unwrap_or("null".to_string()),
+                )
+                .set_alignment(CellAlignment::Center)
+                .fg(cur_color),
                 Cell::new(app_name.clone().unwrap_or("null".to_string()))
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
@@ -139,6 +152,13 @@ pub fn display_project_apps() {
                 Cell::new(project.project_name)
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
+                Cell::new(
+                    app_id
+                        .map(|id| id.to_string())
+                        .unwrap_or("null".to_string()),
+                )
+                .fg(cur_color)
+                .set_alignment(CellAlignment::Center),
                 Cell::new(app_name.clone().unwrap_or("null".to_string()))
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
@@ -152,6 +172,9 @@ pub fn display_project_apps() {
     }
 
     table.add_row(vec![
+        Cell::new("total")
+            .set_alignment(CellAlignment::Center)
+            .fg(cur_color),
         Cell::new("total")
             .set_alignment(CellAlignment::Center)
             .fg(cur_color),
@@ -269,6 +292,9 @@ pub fn display_project_tasks(args: &[String]) {
             Cell::new("project_name")
                 .set_alignment(CellAlignment::Center)
                 .fg(Color::Cyan),
+            Cell::new("task_id")
+                .set_alignment(CellAlignment::Center)
+                .fg(Color::Cyan),
             Cell::new("task_name")
                 .set_alignment(CellAlignment::Center)
                 .fg(Color::Cyan),
@@ -276,10 +302,13 @@ pub fn display_project_tasks(args: &[String]) {
     let mut task_count = 0;
     let mut prev_color = Color::DarkGreen;
     let mut cur_color = Color::DarkCyan;
-    for (project, task_name, _planned_time) in project_tasks {
+    for (project, task_name, _planned_time, task_id) in project_tasks {
         if project.project_id != prev_project_id {
             if prev_project_id != 0 {
                 table.add_row(vec![
+                    Cell::new("total")
+                        .set_alignment(CellAlignment::Center)
+                        .fg(cur_color),
                     Cell::new("total")
                         .set_alignment(CellAlignment::Center)
                         .fg(cur_color),
@@ -300,6 +329,13 @@ pub fn display_project_tasks(args: &[String]) {
                 Cell::new(project.project_name)
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
+                Cell::new(
+                    task_id
+                        .map(|id| id.to_string())
+                        .unwrap_or("null".to_string()),
+                )
+                .fg(cur_color)
+                .set_alignment(CellAlignment::Center),
                 Cell::new(task_name.clone().unwrap_or("null".to_string()))
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
@@ -313,6 +349,13 @@ pub fn display_project_tasks(args: &[String]) {
                 Cell::new(project.project_name)
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
+                Cell::new(
+                    task_id
+                        .map(|id| id.to_string())
+                        .unwrap_or("null".to_string()),
+                )
+                .fg(cur_color)
+                .set_alignment(CellAlignment::Center),
                 Cell::new(task_name.clone().unwrap_or("null".to_string()))
                     .set_alignment(CellAlignment::Center)
                     .fg(cur_color),
@@ -326,6 +369,9 @@ pub fn display_project_tasks(args: &[String]) {
     }
 
     table.add_row(vec![
+        Cell::new("total")
+            .set_alignment(CellAlignment::Center)
+            .fg(cur_color),
         Cell::new("total")
             .set_alignment(CellAlignment::Center)
             .fg(cur_color),

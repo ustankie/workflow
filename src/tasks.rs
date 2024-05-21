@@ -52,18 +52,6 @@ pub fn add_task(args: Vec<String>) {
                 }
                 i += 1;
             }
-            // "-a"=>{
-            //         i+=1;
-            //         if let None=task_apps{
-            //             println!("a");
-
-            //             let j=i;
-            //             while i<args.len() && !(arg_regex.is_match(&args[i])){
-            //                 i+=1;
-            //             }
-            //             task_apps=Option::from(&args[j..i]);
-            //         }
-            //     }
             _ => {
                 println!("Unknown argument '{}': try again", &args[i]);
                 process::exit(-1);

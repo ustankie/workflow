@@ -88,6 +88,7 @@ pub fn pomodoro(args: &[String]) {
 
     ctrlc::set_handler(move || {
         let mut stdout = io::stdout();
+
         stdout.execute(cursor::Show).unwrap();
         stdout.execute(cursor::MoveToColumn(0)).unwrap();
         stdout
@@ -96,6 +97,7 @@ pub fn pomodoro(args: &[String]) {
         stdout
             .execute(terminal::Clear(terminal::ClearType::FromCursorDown))
             .unwrap();
+
         println!("Exiting...");
         io::stdout().flush().unwrap();
         process::exit(0);
@@ -144,6 +146,7 @@ pub fn pomodoro(args: &[String]) {
                 (term).store(false, Ordering::Relaxed);
             }
         }
+        print!("\x07");
 
         let time_str: String = count_time.format("%H:%M:%S").to_string();
         stdout.execute(cursor::MoveTo(0, 0)).unwrap();

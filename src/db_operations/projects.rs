@@ -8,7 +8,7 @@ use diesel::prelude::QueryDsl;
 use diesel::prelude::*;
 use diesel::result::Error;
 use diesel::sql_types::Nullable;
-use diesel::sql_types::Text;
+use diesel::sql_types::{Text,Int4};
 use workflow::models::*;
 use workflow::*;
 
@@ -130,7 +130,7 @@ pub fn add_project(
     }
 }
 
-pub fn get_apps_in_projects() -> Result<Vec<(Project, Option<String>)>, &'static str> {
+pub fn get_apps_in_projects() -> Result<Vec<(Project, Option<String>, Option<i32>)>, &'static str> {
     use workflow::schema::*;
 
     let connection: &mut PgConnection = &mut establish_connection();
@@ -142,9 +142,9 @@ pub fn get_apps_in_projects() -> Result<Vec<(Project, Option<String>)>, &'static
         )
         .left_join(apps::dsl::apps::table().on(apps::dsl::app_id.eq(project_apps::dsl::app_id)))
         .order(projects::dsl::project_id.asc())
-        .select((Project::as_select(), sql::<Nullable<Text>>("apps.app_name")))
+        .select((Project::as_select(), sql::<Nullable<Text>>("apps.app_name"),sql::<Nullable<Int4>>("apps.app_id")))
         .distinct()
-        .load::<(Project, Option<String>)>(connection);
+        .load::<(Project, Option<String>, Option<i32>)>(connection);
 
     match result {
         Ok(x) => Ok(x),
@@ -155,7 +155,7 @@ pub fn get_apps_in_projects() -> Result<Vec<(Project, Option<String>)>, &'static
 pub fn get_tasks_in_projects(
     project_ids: Option<Vec<i32>>,
     commands: HashMap<String,bool>,
-) -> Result<Vec<(Project, Option<String>, Option<String>)>, &'static str> {
+) -> Result<Vec<(Project, Option<String>, Option<String>, Option<i32>)>, &'static str> {
     use workflow::schema::*;
 
     let connection: &mut PgConnection = &mut establish_connection();
@@ -210,9 +210,10 @@ pub fn get_tasks_in_projects(
             Project::as_select(),
             sql::<Nullable<Text>>("tasks.task_name"),
             sql::<Nullable<Text>>("tasks.planned_time"),
+            sql::<Nullable<Int4>>("tasks.task_id"),
         ))
         .distinct()
-        .load::<(Project, Option<String>, Option<String>)>(connection);
+        .load::<(Project, Option<String>, Option<String>, Option<i32>)>(connection);
 
     match result {
         Ok(x) => Ok(x),
