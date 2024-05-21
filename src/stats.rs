@@ -48,7 +48,7 @@ pub struct TaskStats {
     longest_pause: Duration,
     longest_work: Duration,
     since_last_log: Duration,
-    percent: f32,
+    // percent: f32,
 }
 pub fn display_stats(args: &[String]) {
     let stats = db_operations::stats::get_stats(args);
@@ -173,7 +173,7 @@ pub fn display_content(
     let mut project_ids = HashSet::new();
 
     for task in task_stats {
-        if let PrintMode::Project |PrintMode::AllProjects= print_mode {
+        if let PrintMode::Project | PrintMode::AllProjects = print_mode {
         } else if let PrintMode::ConcreteTasks = print_mode {
             if let Some(ref x) = concrete_tasks {
                 if x.contains(&task.task_id) {
@@ -321,7 +321,7 @@ pub fn display_content(
             }
         }
 
-        PrintMode::ConcreteTasks => {},
+        PrintMode::ConcreteTasks => {}
         PrintMode::AllProjects => {
             let mut vals: Vec<ProjectStats> = project_stats.values().cloned().collect();
             vals.sort_by(|a, b| {
@@ -530,11 +530,10 @@ fn get_stats_map(
                     pause_num,
                     longest_pause,
                     longest_work,
-                    since_last_log: Local::now()
-                        .naive_local()
-                        .signed_duration_since(result[i - 1].3.unwrap_or(Local::now()
-                        .naive_local())),
-                    percent: 0.3,
+                    since_last_log: Local::now().naive_local().signed_duration_since(
+                        result[i - 1].3.unwrap_or(Local::now().naive_local()),
+                    ),
+                    // percent: 0.3,
                 };
 
                 task_stats.push(new_task_stats);
@@ -588,11 +587,10 @@ fn get_stats_map(
                     pause_num,
                     longest_pause,
                     longest_work,
-                    since_last_log: Local::now()
-                        .naive_local()
-                        .signed_duration_since(result[i - 1].3.unwrap_or(Local::now()
-                        .naive_local())),
-                    percent: 0.3,
+                    since_last_log: Local::now().naive_local().signed_duration_since(
+                        result[i - 1].3.unwrap_or(Local::now().naive_local()),
+                    ),
+                    // percent: 0.3,
                 };
                 if <Option<String> as Clone>::clone(&result[i - 1].2).unwrap_or_default()
                     == Commands::End.to_string()

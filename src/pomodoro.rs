@@ -146,7 +146,6 @@ pub fn pomodoro(args: &[String]) {
                 (term).store(false, Ordering::Relaxed);
             }
         }
-        
 
         let time_str: String = count_time.format("%H:%M:%S").to_string();
         stdout.execute(cursor::MoveTo(0, 0)).unwrap();
@@ -194,7 +193,7 @@ fn show_clock(count_time: &mut NaiveTime, term: &Arc<AtomicBool>) {
 
         thread::sleep(one_sec);
     }
-    if *count_time==zero_secs{
+    if *count_time == zero_secs {
         print!("\x07");
     }
 }
