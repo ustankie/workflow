@@ -1,16 +1,15 @@
 use chrono::NaiveTime;
 use crossterm::{cursor, terminal, ExecutableCommand};
 use regex::Regex;
-use termion::terminal_size;
 use std::io::{self, stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{process, thread};
 use terminal_fonts::{map_block, to_block, to_string};
+use termion::terminal_size;
 
 use crate::{db_operations, logs, stats, Commands};
-
 
 fn green(v: &str) -> String {
     format!("{}{}{}", "\u{001b}[32m", v, "\u{001b}[0m")
@@ -61,9 +60,7 @@ pub fn pomodoro(args: &[String]) {
     let mut commands_num = 2;
 
     let task_id = &args[0].parse::<i32>();
-    let clearing=args.len()>1 && args[1]=="clearing";
-
-    
+    let clearing = args.len() > 1 && args[1] == "clearing";
 
     let task_id = match task_id {
         Err(_) => {
@@ -130,14 +127,20 @@ pub fn pomodoro(args: &[String]) {
             &mut count_time,
             time_str.lines().count() as i32,
             *task_id,
-            &clearing
+            &clearing,
         );
         stdout.execute(cursor::Hide).unwrap();
 
         while count_time != zero_secs {
             show_clock(&mut count_time, &term);
             if count_time != zero_secs {
-                clock_stopped(&mut commands_num, &mut count_time, &term,time_str.lines().count() as i32, &clearing);
+                clock_stopped(
+                    &mut commands_num,
+                    &mut count_time,
+                    &term,
+                    time_str.lines().count() as i32,
+                    &clearing,
+                );
                 (term).store(false, Ordering::Relaxed);
             }
         }
@@ -153,7 +156,14 @@ pub fn pomodoro(args: &[String]) {
         stdout
             .execute(cursor::MoveDown(commands_num as u16))
             .unwrap();
-        save_log(&mut commands_num, &mut count_time,last_command, &task_id,time_str.lines().count() as i32, &clearing);
+        save_log(
+            &mut commands_num,
+            &mut count_time,
+            last_command,
+            &task_id,
+            time_str.lines().count() as i32,
+            &clearing,
+        );
 
         io::stdout().flush().unwrap();
 
@@ -182,7 +192,13 @@ fn show_clock(count_time: &mut NaiveTime, term: &Arc<AtomicBool>) {
         thread::sleep(one_sec);
     }
 }
-fn clock_stopped(commands_num: &mut i32, count_time: &mut NaiveTime, term: &Arc<AtomicBool>,line_count: i32, clearing: &bool) {
+fn clock_stopped(
+    commands_num: &mut i32,
+    count_time: &mut NaiveTime,
+    term: &Arc<AtomicBool>,
+    line_count: i32,
+    clearing: &bool,
+) {
     let mut stdout = stdout();
     let time_str: String = count_time.format("%H:%M:%S").to_string();
     stdout.execute(cursor::MoveTo(0, 0)).unwrap();
@@ -222,14 +238,14 @@ fn clock_stopped(commands_num: &mut i32, count_time: &mut NaiveTime, term: &Arc<
             }
         }
         let size = terminal_size().unwrap().1 as i32;
-        if *clearing && commands_num>&mut(size-line_count){
+        if *clearing && commands_num > &mut (size - line_count) {
             clear_terminal(commands_num, line_count);
         }
-        
+
         let time_str: String = count_time.format("%H:%M:%S").to_string();
         stdout.execute(cursor::MoveTo(0, 0)).unwrap();
         let time_str: String = to_string(&map_block(&to_block(&time_str), red));
-    
+
         println!("{}", red(&time_str));
         stdout
             .execute(cursor::MoveDown(*commands_num as u16))
@@ -237,7 +253,14 @@ fn clock_stopped(commands_num: &mut i32, count_time: &mut NaiveTime, term: &Arc<
     }
 }
 
-fn save_log(commands_num: &mut i32, count_time: &mut NaiveTime,last_command: PomodoroCommands, task_id: &i32,line_count: i32, clearing: &bool) {
+fn save_log(
+    commands_num: &mut i32,
+    count_time: &mut NaiveTime,
+    last_command: PomodoroCommands,
+    task_id: &i32,
+    line_count: i32,
+    clearing: &bool,
+) {
     let mut repeat_question = true;
     while repeat_question {
         match last_command {
@@ -264,11 +287,11 @@ fn save_log(commands_num: &mut i32, count_time: &mut NaiveTime,last_command: Pom
             PomodoroCommands::Yes => match last_command {
                 PomodoroCommands::Work => {
                     let lines = logs::add_log_by_id(Commands::Pause, task_id);
-                    *commands_num += lines as i32+1;
+                    *commands_num += lines as i32 + 1;
                 }
                 PomodoroCommands::Pause => {
                     let lines = logs::add_log_by_id(Commands::Resume, task_id);
-                    *commands_num += lines as i32+1;
+                    *commands_num += lines as i32 + 1;
                 }
                 _ => (),
             },
@@ -281,14 +304,14 @@ fn save_log(commands_num: &mut i32, count_time: &mut NaiveTime,last_command: Pom
             }
         }
         let size = terminal_size().unwrap().1 as i32;
-        if *clearing && commands_num>&mut(size-line_count){
+        if *clearing && commands_num > &mut (size - line_count) {
             clear_terminal(commands_num, line_count);
         }
         let time_str: String = count_time.format("%H:%M:%S").to_string();
-        let mut stdout: io::Stdout=stdout();
+        let mut stdout: io::Stdout = stdout();
         stdout.execute(cursor::MoveTo(0, 0)).unwrap();
         let time_str: String = to_string(&map_block(&to_block(&time_str), red));
-    
+
         println!("{}", red(&time_str));
         stdout
             .execute(cursor::MoveDown(*commands_num as u16))
@@ -301,7 +324,7 @@ fn action_commands(
     count_time: &mut NaiveTime,
     line_count: i32,
     mut task_id: i32,
-    clearing: &bool
+    clearing: &bool,
 ) -> PomodoroCommands {
     let mut repeat_question = true;
     let time_regex = Regex::new(r"^\d+:\d+:\d+$").unwrap();
@@ -323,7 +346,7 @@ fn action_commands(
             PomodoroCommands::Work => {
                 if action_possible(Commands::Resume, &task_id, commands_num) {
                     let lines = logs::add_log_by_id(Commands::Resume, &task_id);
-                    *commands_num += lines as i32+1;
+                    *commands_num += lines as i32 + 1;
                 } else {
                     println!("Continuing a previously started work");
                     io::stdout().flush().unwrap();
@@ -353,7 +376,7 @@ fn action_commands(
             PomodoroCommands::Pause => {
                 if action_possible(Commands::Pause, &task_id, commands_num) {
                     let lines = logs::add_log_by_id(Commands::Pause, &task_id);
-                    *commands_num += lines as i32+1;
+                    *commands_num += lines as i32 + 1;
                 } else {
                     println!("Continuing a previously started pause");
                     io::stdout().flush().unwrap();
@@ -446,14 +469,14 @@ fn action_commands(
             }
         }
         let size = terminal_size().unwrap().1 as i32;
-        if *clearing && commands_num>&mut(size-line_count){
+        if *clearing && commands_num > &mut (size - line_count) {
             clear_terminal(commands_num, line_count);
         }
         let time_str: String = count_time.format("%H:%M:%S").to_string();
-        let mut stdout: io::Stdout=stdout();
+        let mut stdout: io::Stdout = stdout();
         stdout.execute(cursor::MoveTo(0, 0)).unwrap();
         let time_str: String = to_string(&map_block(&to_block(&time_str), red));
-    
+
         println!("{}", red(&time_str));
         stdout
             .execute(cursor::MoveDown(*commands_num as u16))
@@ -467,7 +490,7 @@ fn clear_terminal(commands_num: &mut i32, line_count: i32) {
     stdout.execute(cursor::MoveTo(0, 0)).unwrap();
     stdout.execute(cursor::MoveToColumn(0)).unwrap();
     stdout
-        .execute(cursor::MoveDown((line_count -1) as u16))
+        .execute(cursor::MoveDown((line_count - 1) as u16))
         .unwrap();
     stdout
         .execute(terminal::Clear(terminal::ClearType::FromCursorDown))

@@ -57,7 +57,7 @@ pub fn display_content(
     stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>,
     print_mode: PrintMode,
     concrete_tasks: Option<Vec<i32>>,
-)->usize {
+) -> usize {
     let all_projects = get_projects().ok();
 
     let (project_stats, task_stats) = get_stats_map(all_projects, stats);
@@ -216,7 +216,8 @@ pub fn display_content(
                             "{:02}:{:02}:{:02}",
                             task.since_last_log.num_days(),
                             task.since_last_log.num_hours() - 24 * task.since_last_log.num_days(),
-                            task.since_last_log.num_minutes() - 60 * task.since_last_log.num_hours()
+                            task.since_last_log.num_minutes()
+                                - 60 * task.since_last_log.num_hours()
                         ))
                         .set_alignment(CellAlignment::Center),
                     ]);
@@ -515,7 +516,7 @@ fn get_stats_map(
                     since_last_log: Local::now()
                         .naive_local()
                         .signed_duration_since(result[i - 1].3.unwrap_or_default()),
-                    percent: 0.3
+                    percent: 0.3,
                 };
 
                 task_stats.push(new_task_stats);
