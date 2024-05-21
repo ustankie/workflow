@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::process;
 use chrono::NaiveDateTime;
 use regex::Regex;
@@ -5,6 +6,7 @@ use workflow::models::Task;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::*;use crate::stats;
+use crate::Commands;
 
 
 use crate::db_operations;
@@ -66,7 +68,7 @@ pub fn add_project(args:Vec<String>){
 pub fn display_projects(){
     let _a=db_operations::projects::get_projects();
     let stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> = db_operations::stats::get_stats(&[]);
-    stats::display_content(stats, stats::PrintMode::Project);
+    stats::display_content(stats, stats::PrintMode::Project,None);
 }
 
 pub fn display_project_apps(){
@@ -144,10 +146,10 @@ pub fn display_project_tasks(args: &[String]){
     let mut i=0;
     let mut seeked_project_id: Option<Vec<i32>>=None;
     let mut found_project=false;
-    let mut ended:Option<bool>=None;
+    let mut command:HashMap<String,bool>=HashMap::new();
     while i<args.len(){
         match &args[i][..]{
-            "-p" => {
+            "-pr" => {
                     i+=1;
                     let mut project_ids=vec![];
                     if found_project{
@@ -170,11 +172,35 @@ pub fn display_project_tasks(args: &[String]){
                     found_project=true;
                 },
             "-e" => {
-                    ended=Some(true);
+                    if command.contains_key(&Commands::End.to_string())&& !command.get(&Commands::End.to_string()).unwrap(){
+                        println!("Cannot apply contradictory filters!");
+                        process::exit(-1);
+                    }
+                    command.insert(Commands::End.to_string(),true);
+                    i+=1;
+                },
+            "-ne" => {
+                    if command.contains_key(&Commands::End.to_string())&& !!command.get(&Commands::End.to_string()).unwrap(){
+                        println!("Cannot apply contradictory filters!");
+                        process::exit(-1);
+                    }
+                    command.insert(Commands::End.to_string(),false);
+                    i+=1;
+                },
+            "-b" => {
+                if command.contains_key(&Commands::Begin.to_string())&& !command.get(&Commands::Begin.to_string()).unwrap(){
+                    println!("Cannot apply contradictory filters!");
+                    process::exit(-1);
+                }
+                    command.insert(Commands::Begin.to_string(),true);
                     i+=1;
                 }
-            "-ne" => {
-                    ended=Some(false);
+            "-nb" => {
+                    if command.contains_key(&Commands::Begin.to_string())&& !!command.get(&Commands::Begin.to_string()).unwrap(){
+                        println!("Cannot apply contradictory filters!");
+                        process::exit(-1);
+                    }
+                    command.insert(Commands::Begin.to_string(),false);
                     i+=1;
                 }
             _=>{println!("Unknown argument '{}': try again",&args[i]); 
@@ -186,7 +212,7 @@ pub fn display_project_tasks(args: &[String]){
 
 
 
-    let project_tasks=db_operations::projects::get_tasks_in_projects(seeked_project_id.clone(), ended);
+    let project_tasks=db_operations::projects::get_tasks_in_projects(seeked_project_id.clone(), command);
 
     let project_tasks=project_tasks.ok().unwrap_or(vec![]);
     if project_tasks.len()==0 {

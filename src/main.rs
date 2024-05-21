@@ -24,8 +24,9 @@ pub mod logs;
 pub mod projects;
 pub mod stats;
 pub mod tasks;
+pub mod pomodoro;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Commands {
     AddProject,
     AllProjects,
@@ -44,6 +45,7 @@ pub enum Commands {
     Man,
     Stats,
     Day,
+    Pomodoro,
     NoSuchCommand,
 }
 
@@ -67,6 +69,7 @@ impl From<String> for Commands {
             "day" => Commands::Day,
             "projectapps"=>Commands::ProjectApps,
             "projecttasks"=>Commands::ProjectTasks,
+            "pomodoro"=>Commands::Pomodoro,
             _ => Commands::NoSuchCommand,
         }
     }
@@ -109,6 +112,7 @@ fn main() {
         Commands::AllApps=> apps::display_apps(&args[2..]),
         Commands::ProjectApps=> projects::display_project_apps(),
         Commands::ProjectTasks=>projects::display_project_tasks(&args[2..]),
+        Commands::Pomodoro=>pomodoro::pomodoro(),
         Commands::NoSuchCommand => {
             println!("Wrong command!");
         }
@@ -143,7 +147,7 @@ impl App {
 fn display_man() {
     let message=
 "-----------------------------------------------------
-Welcome to workflow!
+                Welcome to workflow!
 -----------------------------------------------------
 COMMANDS:
 - newproject NAME- creates new project
@@ -183,7 +187,19 @@ COMMANDS:
         -d, -date DATE - sets the date to display instead of the current date, DATE should be 
             in format \"YYYY-MM-DD\"
 
-        (possible merging -ld, -dl options)
+        (possible merging -ld, -dl options);
+
+- projectapps - displays all apps the projects use;
+
+- projecttasks - displays all tasks belonging to the projects
+    OPTIONS
+        -pr PROJECT_ID_LIST - displays the tasks only for the given projects
+        -b - displays only the tasks that have been beginned
+        -nb - displays only the tasks that have not been beginned
+        -e - displays only the tasks that have been ended
+        -ne - displays only the tasks that have not been ended;
+    
+    Returns error if two contraditory filters are applied, i.e. -b and -nb
 
 - man - displays app's manual;";
 

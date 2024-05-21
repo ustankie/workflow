@@ -1,5 +1,6 @@
+use std::collections::HashMap;
+
 use crate::db_operations;
-use crate::Commands;
 use chrono::NaiveDate;
 use diesel::associations::HasTable;
 use diesel::dsl::{date, sql};
@@ -16,6 +17,24 @@ pub fn find_project(project_name_: &str) -> Result<Option<Project>, &'static str
     let connection = &mut establish_connection();
     let app = projects
         .filter(project_name.eq(project_name_.to_lowercase()))
+        .select(Project::as_select())
+        .first(connection);
+
+    match app {
+        Ok(x) => Ok(Some(x)),
+        Err(Error::NotFound) => Ok(None),
+        Err(x) => {
+            println!("{}", x);
+            Err("An error occured while fetching project")
+        }
+    }
+}
+
+pub fn get_project_by_id(project_id_: i32) -> Result<Option<Project>, &'static str> {
+    use self::schema::projects::dsl::*;
+    let connection = &mut establish_connection();
+    let app = projects
+        .filter(project_id.eq(project_id_))
         .select(Project::as_select())
         .first(connection);
 
@@ -135,68 +154,68 @@ pub fn get_apps_in_projects() -> Result<Vec<(Project, Option<String>)>, &'static
 
 pub fn get_tasks_in_projects(
     project_ids: Option<Vec<i32>>,
-    ended: Option<bool>,
+    commands: HashMap<String,bool>,
 ) -> Result<Vec<(Project, Option<String>, Option<String>)>, &'static str> {
     use workflow::schema::*;
 
     let connection: &mut PgConnection = &mut establish_connection();
+    let command_list=commands.clone();
 
-    let mut result = projects::dsl::projects
-        .left_join(
-            tasks::dsl::tasks::table().on(tasks::dsl::project_id.eq(projects::dsl::project_id)),
-        )
-        .left_join(log::dsl::log::table().on(tasks::dsl::task_id.eq(log::dsl::task_id)))
-        .into_boxed();
-    let mut sub_query = projects::dsl::projects
-        .left_join(
-            tasks::dsl::tasks::table().on(tasks::dsl::project_id.eq(projects::dsl::project_id)),
-        )
-        .left_join(
-            workflow::schema::log::table.on(workflow::schema::tasks::task_id
-                .eq(workflow::schema::log::task_id)
-                .and(workflow::schema::log::log_type.eq(Commands::End.to_string()))),
-        )
-        .into_boxed();
+    let mut result =
+    //  if commands.is_some() {
+        projects::dsl::projects
+            .left_join(
+                tasks::dsl::tasks::table().on(tasks::dsl::project_id.eq(projects::dsl::project_id)),
+            )
+            .left_join(
+                workflow::schema::log::table.on(workflow::schema::tasks::task_id
+                    .eq(workflow::schema::log::task_id)
+                    .and(
+                        workflow::schema::log::log_type.eq_any(commands.keys()),
+                    )),
+            )
+            .into_boxed();
+    // } else {
+    //     let empty_keys:HashMap<String,bool>=HashMap::new();
+    //     projects::dsl::projects
+    //         .left_join(
+    //             tasks::dsl::tasks::table().on(tasks::dsl::project_id.eq(projects::dsl::project_id)),
+    //         )
+    //         .left_join(
+    //             workflow::schema::log::table.on(workflow::schema::tasks::task_id
+    //                 .eq(workflow::schema::log::task_id)
+    //                 .and(workflow::schema::log::log_type.eq_any(empty_keys.keys()))),
+    //         )
+    //         .into_boxed()
+    // };
+
     if project_ids.is_some() {
         let seeked_ids = project_ids.unwrap();
         result = result.filter(workflow::schema::tasks::project_id.eq_any(seeked_ids.clone()));
-        sub_query=sub_query.filter(workflow::schema::tasks::project_id.eq_any(seeked_ids));
     }
+    // if let Some(command_list)=commands{
+        for (command,negation) in command_list{
+            println!("{}, {}",command,negation);
+            if negation{
+                result =result.filter(workflow::schema::log::log_type.eq(command))
+            } else{
+                result = result.filter(workflow::schema::log::task_id.is_null())
+            };
+        }
+    // }
+   
+    let result = result
+        .order(projects::dsl::project_id.asc())
+        .select((
+            Project::as_select(),
+            sql::<Nullable<Text>>("tasks.task_name"),
+            sql::<Nullable<Text>>("tasks.planned_time"),
+        ))
+        .distinct()
+        .load::<(Project, Option<String>, Option<String>)>(connection);
 
-    let result = if ended.is_some() && ended.unwrap() {
-        result.filter(workflow::schema::log::log_type.eq(Commands::End.to_string()))
-            .order(projects::dsl::project_id.asc())
-            .select((
-                Project::as_select(),
-                sql::<Nullable<Text>>("tasks.task_name"),
-                sql::<Nullable<Text>>("tasks.planned_time"),
-            ))
-            .distinct()
-            .load::<(Project, Option<String>, Option<String>)>(connection)
-    } else if ended.is_some() && !ended.unwrap() {
-        sub_query.filter(workflow::schema::log::task_id.is_null())
-            .order(projects::dsl::project_id.asc())
-            .select((
-                Project::as_select(),
-                sql::<Nullable<Text>>("tasks.task_name"),
-                sql::<Nullable<Text>>("tasks.planned_time"),
-            ))
-            .distinct()
-            .load::<(Project, Option<String>, Option<String>)>(connection)
-    } else {
-        result.order(projects::dsl::project_id.asc())
-            .select((
-                Project::as_select(),
-                sql::<Nullable<Text>>("tasks.task_name"),
-                sql::<Nullable<Text>>("tasks.planned_time"),
-            ))
-            .distinct()
-            .load::<(Project, Option<String>, Option<String>)>(connection)
-    };
-
-        
     match result {
         Ok(x) => Ok(x),
-        Err(_) => Err("An error occurred while fetching apps"),
+        Err(_) => Err("An error occurred while fetching projects"),
     }
 }

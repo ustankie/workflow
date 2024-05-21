@@ -16,6 +16,7 @@ pub enum PrintMode {
     All,
     Appearing,
     Project,
+    ConcreteTasks,
 }
 
 #[derive(Debug, Clone)]
@@ -45,14 +46,17 @@ pub struct TaskStats {
     pause_num: i32,
     longest_pause: Duration,
     longest_work: Duration,
+    since_last_log: Duration,
+    percent: f32,
 }
 pub fn display_stats(args: &[String]) {
     let stats = db_operations::stats::get_stats(args);
-    display_content(stats, PrintMode::All);
+    display_content(stats, PrintMode::All, None);
 }
 pub fn display_content(
     stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str>,
     print_mode: PrintMode,
+    concrete_tasks: Option<Vec<i32>>,
 ) {
     let all_projects = get_projects().ok();
 
@@ -81,9 +85,49 @@ pub fn display_content(
                     .set_alignment(CellAlignment::Center)
                     .fg(Color::Cyan),
                 Cell::new("planned_time")
-                .set_alignment(CellAlignment::Center)
-                .fg(Color::Cyan),
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
                 Cell::new("total_worked")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+            ]);
+    } else if let PrintMode::ConcreteTasks = print_mode {
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![
+                Cell::new("task_id")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("project_id")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("task_name")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("user")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("planned_time")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("total time")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("total worked")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("pause num")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("longest pause")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("longest work")
+                    .set_alignment(CellAlignment::Center)
+                    .fg(Color::Cyan),
+                Cell::new("since_last_log")
                     .set_alignment(CellAlignment::Center)
                     .fg(Color::Cyan),
             ]);
@@ -129,6 +173,55 @@ pub fn display_content(
 
     for task in task_stats {
         if let PrintMode::Project = print_mode {
+        } else if let PrintMode::ConcreteTasks = print_mode {
+            if let Some(ref x) = concrete_tasks {
+                if x.contains(&task.task_id) {
+                    table.add_row(vec![
+                        Cell::new(task.task_id).set_alignment(CellAlignment::Center),
+                        Cell::new(task.project_id).set_alignment(CellAlignment::Center),
+                        Cell::new(task.task_name.clone()).set_alignment(CellAlignment::Center),
+                        Cell::new(task.username.clone()).set_alignment(CellAlignment::Center),
+                        Cell::new(task.planned_time.unwrap_or("null".to_string()))
+                            .set_alignment(CellAlignment::Center),
+                        Cell::new(format!(
+                            "{:02}:{:02}:{:02}",
+                            task.total_time.num_days(),
+                            task.total_time.num_hours() - 24 * task.total_time.num_days(),
+                            task.total_time.num_minutes() - task.total_time.num_hours() * 60
+                        ))
+                        .set_alignment(CellAlignment::Center),
+                        Cell::new(format!(
+                            "{:02}:{:02}:{:02}",
+                            task.total_worked.num_days(),
+                            task.total_worked.num_hours() - 24 * task.total_worked.num_days(),
+                            task.total_worked.num_minutes() - task.total_worked.num_hours() * 60
+                        ))
+                        .set_alignment(CellAlignment::Center),
+                        Cell::new(task.pause_num).set_alignment(CellAlignment::Center),
+                        Cell::new(format!(
+                            "{:02}:{:02}:{:02}",
+                            task.longest_pause.num_days(),
+                            task.longest_pause.num_hours() - 24 * task.longest_pause.num_days(),
+                            task.longest_pause.num_minutes() - 60 * task.longest_pause.num_hours()
+                        ))
+                        .set_alignment(CellAlignment::Center),
+                        Cell::new(format!(
+                            "{:02}:{:02}:{:02}",
+                            task.longest_work.num_days(),
+                            task.longest_work.num_hours() - 24 * task.longest_work.num_days(),
+                            task.longest_work.num_minutes() - 60 * task.longest_work.num_hours()
+                        ))
+                        .set_alignment(CellAlignment::Center),
+                        Cell::new(format!(
+                            "{:02}:{:02}:{:02}",
+                            task.since_last_log.num_days(),
+                            task.since_last_log.num_hours() - 24 * task.longest_work.num_days(),
+                            task.since_last_log.num_minutes() - 60 * task.longest_work.num_hours()
+                        ))
+                        .set_alignment(CellAlignment::Center),
+                    ]);
+                }
+            }
         } else {
             table.add_row(vec![
                 Cell::new(task.task_id).set_alignment(CellAlignment::Center),
@@ -225,6 +318,8 @@ pub fn display_content(
                 extend_project_table(&mut table, project);
             }
         }
+
+        PrintMode::ConcreteTasks => {}
     }
 
     println!("{table}");
@@ -287,7 +382,8 @@ fn extend_project_table(table: &mut Table, project: &ProjectStats) {
         Cell::new(project.username.clone()).set_alignment(CellAlignment::Center),
         Cell::new(project.total_tasks).set_alignment(CellAlignment::Center),
         Cell::new(project.completed_tasks).set_alignment(CellAlignment::Center),
-        Cell::new(project.clone().planned_time.unwrap_or("null".to_string())).set_alignment(CellAlignment::Center),
+        Cell::new(project.clone().planned_time.unwrap_or("null".to_string()))
+            .set_alignment(CellAlignment::Center),
         Cell::new(format!(
             "{:02}:{:02}:{:02}",
             project.total_worked.num_days(),
@@ -415,6 +511,10 @@ fn get_stats_map(
                     pause_num,
                     longest_pause,
                     longest_work,
+                    since_last_log: Local::now()
+                        .naive_local()
+                        .signed_duration_since(result[i - 1].3.unwrap_or_default()),
+                    percent: 0.3
                 };
 
                 task_stats.push(new_task_stats);
@@ -468,6 +568,10 @@ fn get_stats_map(
                     pause_num,
                     longest_pause,
                     longest_work,
+                    since_last_log: Local::now()
+                        .naive_local()
+                        .signed_duration_since(result[i - 1].3.unwrap_or_default()),
+                    percent: 0.3,
                 };
                 if <Option<String> as Clone>::clone(&result[i - 1].2).unwrap_or_default()
                     == Commands::End.to_string()
@@ -487,48 +591,46 @@ fn get_stats_map(
 
 pub fn display_day_stats(args: &[String]) {
     let mut date_to_seek = Local::now().naive_local().date();
-    let mut long_version=false;
+    let mut long_version = false;
 
-    let mut i=0;
-    while i<args.len(){
-        match &args[i][..]{
-            "-d"|"-day"|"-ld" |"-dl"=> {
-                    if "-ld"==&args[i][..]||"-dl"==&args[i][..]{
-                        long_version=true;
-                    }
-                    i+=1;
-                    if args.len() < 2 {
-                        println!("Too little arguments for this option!");
-                        return;
-                    }
-            
-                    let seeked_date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d");
-                    if let Err(_) = seeked_date {
-                        println!("Couldn't parse the date format, giving results for current day");
-                    }
-            
-                    date_to_seek = seeked_date.unwrap_or(Local::now().naive_local().date());
-                    i+=1;
-                    
-                },
-            "-l"=>{
-                    i+=1; 
-                    long_version=true;
-
+    let mut i = 0;
+    while i < args.len() {
+        match &args[i][..] {
+            "-d" | "-day" | "-ld" | "-dl" => {
+                if "-ld" == &args[i][..] || "-dl" == &args[i][..] {
+                    long_version = true;
+                }
+                i += 1;
+                if args.len() < 2 {
+                    println!("Too little arguments for this option!");
+                    return;
                 }
 
-            _=>{println!("Unknown argument '{}': try again",&args[i]); 
+                let seeked_date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d");
+                if let Err(_) = seeked_date {
+                    println!("Couldn't parse the date format, giving results for current day");
+                }
+
+                date_to_seek = seeked_date.unwrap_or(Local::now().naive_local().date());
+                i += 1;
+            }
+            "-l" => {
+                i += 1;
+                long_version = true;
+            }
+
+            _ => {
+                println!("Unknown argument '{}': try again", &args[i]);
                 process::exit(-1);
-                }
+            }
         }
-        
     }
-
 
     let projects = get_date_projects(date_to_seek);
 
     if let Ok(x) = projects {
-        let stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> = db_operations::stats::get_day_stats_tasks(date_to_seek, None);
+        let stats: Result<Vec<(Task, Option<i32>, Option<String>, Option<NaiveDateTime>)>, &str> =
+            db_operations::stats::get_day_stats_tasks(date_to_seek, None);
 
         if x.len() > 0 {
             if date_to_seek == Local::now().naive_local().date() {
@@ -537,21 +639,20 @@ pub fn display_day_stats(args: &[String]) {
                 print!("On {} ", date_to_seek);
             }
             println!("you worked on the following {} projects:", x.len());
-            display_content(stats, PrintMode::Project);
-            if long_version{
+            display_content(stats, PrintMode::Project, None);
+            if long_version {
                 println!("In details:");
                 for project in x {
                     println!("Project {}:", project.project_id);
-                    let stats =
-                        db_operations::stats::get_day_stats_tasks(date_to_seek, Some(project.project_id));
-                    display_content(stats, PrintMode::Appearing)
+                    let stats = db_operations::stats::get_day_stats_tasks(
+                        date_to_seek,
+                        Some(project.project_id),
+                    );
+                    display_content(stats, PrintMode::Appearing, None)
                 }
             }
-           
-        }else{
+        } else {
             println!("Today you didn't work on any projects");
         }
-
-       
     }
 }

@@ -1,5 +1,5 @@
 use chrono::Local;
-use crate::db_operations;
+use crate::{db_operations, stats};
 use crate::Commands;
 use std::process;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
@@ -67,6 +67,7 @@ pub fn add_log(args:Vec<String>, log_type:Commands){
             }
             }
     }
+
 }
 
 pub fn add_log_by_id(log_type:Commands,num:&i32){
@@ -112,14 +113,18 @@ pub fn add_log_by_id(log_type:Commands,num:&i32){
         Ok(Some(x)) if x.log_type==Commands::Pause.to_string() && log_type==(Commands::Pause)=>{println!("Task has already been paused");return;},
         Ok(Some(x)) if x.log_type!=Commands::Pause.to_string() && log_type==(Commands::Resume) =>{println!("Pause task before you resume it");return;},
         Ok(Some(_)) if log_type==Commands::Begin => {println!("Task has already been started"); return;},
-        Ok(Some(x)) if x.log_type==Commands::Pause.to_string()=>{
+        Ok(Some(x)) if log_type==Commands::Pause=>{
             let duration=Local::now().naive_local().signed_duration_since(x.date);
             println!("You've been working {} days, {} hours, {} minutes", duration.num_days(), duration.num_hours(), duration.num_minutes());}
-        Ok(Some(x)) if x.log_type==Commands::Resume.to_string()=>{
+        Ok(Some(x)) if log_type==Commands::Resume=>{
             let duration=Local::now().naive_local().signed_duration_since(x.date);
             println!("Your pause was {} days, {} hours, {} minutes long",  duration.num_days(), duration.num_hours(), duration.num_minutes());}
         _=>()
     }
     
-    db_operations::logs::add_log(*num, log_type.to_string(), true);
+    let stats = db_operations::stats::get_stats(&[]);
+    stats::display_content(stats, stats::PrintMode::ConcreteTasks,Some(vec![*num]));
+    db_operations::logs::add_log(*num, log_type.to_string(), false);
+
+
 }
